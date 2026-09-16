@@ -1,26 +1,104 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* palette — everything lives in the red spectrum on near-black */
+  --color-ink: #060607;
+  --color-coal: #0d0d11;
+  --color-smoke: #15151b;
+  --color-ash: #8b8b95;
+  --color-bone: #ece9e2;
+  --color-flame: #ff2e2e;
+  --color-blaze: #ff6a3d;
+  --color-blood: #7e0e14;
+  --color-wine: #2a090c;
+
+  --font-display: var(--font-orbitron), "Arial Black", sans-serif;
+  --font-sans: var(--font-chakra), "Segoe UI", sans-serif;
+  --font-mono: var(--font-sharetech), "Courier New", monospace;
+
+  /* the system is sharp — radius always resolves to zero */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* signature cut — chamfered top-right + bottom-left corners */
+@utility clip-chamfer {
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--chamfer, 14px)) 0,
+    100% var(--chamfer, 14px),
+    100% 100%,
+    var(--chamfer, 14px) 100%,
+    0 calc(100% - var(--chamfer, 14px))
+  );
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* same cut at tag scale */
+@utility clip-tag {
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--chamfer, 6px)) 0,
+    100% var(--chamfer, 6px),
+    100% 100%,
+    var(--chamfer, 6px) 100%,
+    0 calc(100% - var(--chamfer, 6px))
+  );
+}
+
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+@utility bg-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0.22) 0px,
+    rgb(0 0 0 / 0.22) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+@utility bg-hazard {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(255 46 46 / 0.6) 0px,
+    rgb(255 46 46 / 0.6) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+
+@utility text-glow {
+  text-shadow:
+    0 0 16px rgb(255 46 46 / 0.55),
+    0 0 48px rgb(255 46 46 / 0.22);
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-radius: 0;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-ink font-sans text-bone antialiased;
+  }
+
+  ::selection {
+    background: var(--color-flame);
+    color: var(--color-ink);
+  }
 }

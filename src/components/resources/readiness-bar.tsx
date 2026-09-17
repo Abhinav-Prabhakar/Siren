@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Package, Truck, Users, type LucideIcon } from "lucide-react";
 import { needsAttention } from "@/components/equipment/shared";
 import { Led } from "@/components/ui";
@@ -60,10 +61,13 @@ export function ReadinessBar({
   vehicles,
   equipment,
   personnel,
+  controls,
 }: {
   vehicles: Feed<Vehicle>;
   equipment: Feed<Equipment>;
   personnel: Feed<Personnel>;
+  /** Operator controls docked at the right end of the strip. */
+  controls?: ReactNode;
 }) {
   const vs = vehicles.data;
   const es = equipment.data;
@@ -110,6 +114,9 @@ export function ReadinessBar({
             total={es?.length ?? 0}
           />
         </>
+      )}
+      {controls !== undefined && (
+        <span className="ml-auto flex items-center gap-4">{controls}</span>
       )}
     </div>
   );

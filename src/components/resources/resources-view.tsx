@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useState } from "react";
 import { ConsoleNav } from "@/components/console-nav";
-import { PositionBoard } from "@/components/vehicles/position-board";
+import { FleetMap } from "@/components/map/fleet-map";
 import { VehicleDetailModal } from "@/components/vehicles/vehicle-detail-modal";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/use-polling";
@@ -14,8 +14,8 @@ import { ResourceSidebar, type ResourceTab } from "./sidebar";
 /**
  * Consolidated /resources view — the main page.
  *
- * Left: station readiness proportions, the live position board and the
- * cross-domain flag queue. Right: a fixed icon-tabbed
+ * Left: station readiness proportions, the live offline fleet map and
+ * the cross-domain flag queue. Right: a fixed icon-tabbed
  * rail (Fleet / Kit / Crew) that holds the full manifests — every row
  * opens its detail modal in place. All three feeds poll once here at
  * 4 s and are passed down. Deep-linkable via ?tab=.
@@ -32,6 +32,8 @@ export function ResourcesView({ initialTab }: { initialTab: ResourceTab }) {
   const vehicles = usePolling(api.vehicles, 4000);
   const equipment = usePolling(api.equipment, 4000);
   const personnel = usePolling(() => api.personnel(), 4000);
+  const incidents = usePolling(() => api.incidents("active"), 4000);
+  const overview = usePolling(api.overview, 8000);
 
   return (
     <div className="relative min-h-screen bg-ink">
@@ -60,8 +62,14 @@ export function ResourcesView({ initialTab }: { initialTab: ResourceTab }) {
             equipment={equipment}
             personnel={personnel}
           />
-          <PositionBoard
+          <FleetMap
             vehicles={vehicles.data ?? []}
+            incidents={incidents.data ?? []}
+            station={
+              overview.data === null
+                ? null
+                : { lat: overview.data.station.lat, lng: overview.data.station.lng }
+            }
             selectedId={boardSelected}
             onSelect={setBoardSelected}
           />

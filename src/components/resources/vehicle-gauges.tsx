@@ -126,14 +126,14 @@ const SVG_TONE: Record<
   cold: {
     stroke: "stroke-bone",
     fill: "fill-bone",
-    strokeOpacity: 0.7,
-    fillOpacity: 0.35,
+    strokeOpacity: 0.45,
+    fillOpacity: 0.25,
   },
   dead: {
     stroke: "stroke-ash",
     fill: "fill-ash",
-    strokeOpacity: 0.45,
-    fillOpacity: 0.15,
+    strokeOpacity: 0.25,
+    fillOpacity: 0.1,
   },
   plain: {
     stroke: "stroke-flame",
@@ -162,7 +162,7 @@ function Silhouette({ v }: { v: Vehicle }) {
     ((24 - d.fillTop) * Math.max(0, Math.min(100, v.fuel_pct))) / 100;
 
   return (
-    <svg viewBox="0 0 96 34" className="h-10 w-[104px] shrink-0" aria-hidden>
+    <svg viewBox="0 0 96 34" className="h-9 w-[86px] shrink-0" aria-hidden>
       <defs>
         <clipPath id={clip}>
           <path d={d.outline} />

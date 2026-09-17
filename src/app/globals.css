@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 @theme {
   /* palette — everything lives in the red spectrum on near-black */
@@ -142,5 +143,37 @@
   ::selection {
     background: var(--color-flame);
     color: var(--color-ink);
+  }
+
+  /* fleet-map — grade the light OSM tiles into the ink/flame system */
+  .fleet-map .maplibregl-canvas {
+    filter: invert(0.92) hue-rotate(180deg) brightness(0.85) contrast(0.9)
+      saturate(0.35);
+  }
+
+  .fleet-map .maplibregl-ctrl-attrib {
+    @apply bg-coal/80 font-mono text-[8px] tracking-[0.15em] text-ash;
+  }
+
+  .fleet-map .maplibregl-ctrl-attrib a {
+    @apply text-ash;
+  }
+
+  .fleet-map .maplibregl-ctrl-group {
+    @apply border border-flame/20 bg-coal;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .fleet-map .maplibregl-ctrl-group button {
+    border-radius: 0;
+  }
+
+  .fleet-map .maplibregl-ctrl-group button + button {
+    @apply border-t border-flame/15;
+  }
+
+  .fleet-map .maplibregl-ctrl-icon {
+    filter: invert(1) brightness(1.6);
   }
 }

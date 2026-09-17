@@ -3,6 +3,7 @@
 import { useId } from "react";
 import type { BadgeTone } from "@/components/ui";
 import { statusTone, type Vehicle, type VehicleType } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { fmtFree, Row, RowMeta, TONE_TEXT } from "./rows";
 import { placeOf, STATUS_SHORT } from "./vehicle-shared";
 
@@ -146,9 +147,10 @@ const SVG_TONE: Record<
 /**
  * The vehicle as its own gauge — a detailed apparatus silhouette whose
  * interior fill height IS the fuel level. Rolling units get a dashed
- * outline (in motion), dead units go thin and grey.
+ * outline (in motion), dead units go thin and grey. Exported at other
+ * sizes for the unit record modal.
  */
-function Silhouette({ v }: { v: Vehicle }) {
+export function Silhouette({ v, className }: { v: Vehicle; className?: string }) {
   const clip = useId();
   const tone = statusTone(v.status);
   const s = SVG_TONE[tone];
@@ -162,7 +164,11 @@ function Silhouette({ v }: { v: Vehicle }) {
     ((24 - d.fillTop) * Math.max(0, Math.min(100, v.fuel_pct))) / 100;
 
   return (
-    <svg viewBox="0 0 96 34" className="h-9 w-[86px] shrink-0" aria-hidden>
+    <svg
+      viewBox="0 0 96 34"
+      className={cn("h-9 w-[86px] shrink-0", className)}
+      aria-hidden
+    >
       <defs>
         <clipPath id={clip}>
           <path d={d.outline} />

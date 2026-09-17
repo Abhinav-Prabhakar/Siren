@@ -109,6 +109,25 @@
   }
 }
 
+/* heart icon that beats — duration is set inline from the wearer's bpm */
+@utility animate-heartbeat {
+  animation: heartbeat 1s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes heartbeat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.22);
+  }
+  34% {
+    transform: scale(1.04);
+  }
+}
+
 /* range thumb — used by <Slider> */
 @layer components {
   .siren-range {

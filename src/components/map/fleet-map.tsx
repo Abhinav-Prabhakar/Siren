@@ -119,12 +119,12 @@ export function FleetMap({
   const fittedRef = useRef(false);
   const [ready, setReady] = useState(false);
 
-  // units that aren't at base — these are the ones going somewhere
+  // every unit gets a marker; only non-available units draw route lines
   const deployed = vehicles.filter((v) => v.status !== "available");
 
   // markers/lines only rebuild when positions or statuses actually move
   const sig = JSON.stringify([
-    deployed.map((v) => [
+    vehicles.map((v) => [
       v.id,
       v.callsign,
       v.lat,
@@ -212,7 +212,12 @@ export function FleetMap({
 
     const wanted = new Map<
       string,
-      { el: HTMLElement; lngLat: [number, number]; onClick?: () => void }
+      {
+        el: HTMLElement;
+        lngLat: [number, number];
+        offset?: [number, number];
+        onClick?: () => void;
+      }
     >();
     const bounds = new ml.LngLatBounds();
 
@@ -220,10 +225,26 @@ export function FleetMap({
       wanted.set(`inc-${i.id}`, { el: incidentEl(i), lngLat: [i.lng, i.lat] });
       bounds.extend([i.lng, i.lat]);
     }
-    for (const v of deployed) {
+
+    // units sharing a coordinate (the whole bay) fan out in a ring
+    // so every marker stays visible and clickable
+    const stacks = new Map<string, Vehicle[]>();
+    for (const v of vehicles) {
+      const k = `${v.lat.toFixed(5)},${v.lng.toFixed(5)}`;
+      stacks.set(k, [...(stacks.get(k) ?? []), v]);
+    }
+    for (const v of vehicles) {
+      const stack = stacks.get(`${v.lat.toFixed(5)},${v.lng.toFixed(5)}`) ?? [];
+      let offset: [number, number] | undefined;
+      if (stack.length > 1) {
+        const idx = stack.findIndex((x) => x.id === v.id);
+        const angle = (idx / stack.length) * Math.PI * 2;
+        offset = [Math.round(Math.cos(angle) * 16), Math.round(Math.sin(angle) * 12)];
+      }
       wanted.set(`veh-${v.id}`, {
         el: vehicleEl(v, v.id === selectedId),
         lngLat: [v.lng, v.lat],
+        offset,
         onClick: () => onSelect(v.id),
       });
       bounds.extend([v.lng, v.lat]);
@@ -247,7 +268,7 @@ export function FleetMap({
       const m = new ml.Marker({
         element: t.el,
         anchor: "top",
-        offset: [0, 7],
+        offset: [t.offset?.[0] ?? 0, 7 + (t.offset?.[1] ?? 0)],
       })
         .setLngLat(t.lngLat)
         .addTo(map);
@@ -302,9 +323,9 @@ export function FleetMap({
       )}
     >
       <div ref={containerRef} className="absolute inset-0" />
-      {deployed.length === 0 && (
+      {vehicles.length === 0 && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-ink/40 font-mono text-[10px] uppercase tracking-[0.3em] text-ash/70">
-          all units home
+          no position telemetry
         </div>
       )}
     </div>

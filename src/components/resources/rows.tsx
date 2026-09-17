@@ -121,7 +121,7 @@ export function Row({
       onFocus={onHover ? () => onHover(true) : undefined}
       onBlur={onHover ? () => onHover(false) : undefined}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-flame/5 focus-visible:outline-none focus-visible:bg-flame/10",
+        "group flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-flame/5 focus-visible:outline-none focus-visible:bg-flame/10",
         dimmed && "opacity-50",
       )}
     >
@@ -164,18 +164,21 @@ export function RowMeta({
 export function InspectorDock({
   title,
   icon,
+  idle,
   children,
 }: {
-  /** Null → dock shows a hint instead of fields. */
+  /** Null → dock shows the idle summary instead of row fields. */
   title: ReactNode;
   icon?: ReactNode;
+  /** Content shown when no row is hovered — a manifest summary. */
+  idle?: ReactNode;
   children?: ReactNode;
 }) {
   return (
     <div className="min-h-[96px] shrink-0 border-t border-flame/15 bg-ink/60 px-4 py-2.5">
       {title === null ? (
-        <div className="flex h-full items-center justify-center font-mono text-[9px] uppercase tracking-[0.3em] text-ash/50">
-          hover a row — detail docks here
+        <div className="flex h-full min-h-[72px] flex-wrap items-center justify-center gap-x-5 gap-y-1 font-mono text-[9px] uppercase tracking-[0.2em] text-ash/60">
+          {idle}
         </div>
       ) : (
         <>

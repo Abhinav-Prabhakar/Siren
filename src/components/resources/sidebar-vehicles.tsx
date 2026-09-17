@@ -107,12 +107,32 @@ function VehicleRow({
   );
 }
 
-function VehicleInspector({ v }: { v: Vehicle | null }) {
+function VehicleInspector({
+  v,
+  all,
+}: {
+  v: Vehicle | null;
+  all: Vehicle[] | null;
+}) {
   const Icon = v === null ? Truck : TYPE_ICON[v.type];
   return (
     <InspectorDock
       title={v === null ? null : `${v.callsign} — ${v.name}`}
       icon={<Icon className="h-3.5 w-3.5 text-flame" />}
+      idle={
+        all !== null && (
+          <>
+            {GROUPS.map((g) => {
+              const n = all.filter((x) => g.statuses.includes(x.status)).length;
+              return n > 0 ? (
+                <span key={g.label}>
+                  <span className="text-bone/70">{n}</span> {g.label}
+                </span>
+              ) : null;
+            })}
+          </>
+        )
+      }
     >
       {v !== null && (
         <>
@@ -187,7 +207,7 @@ export function VehiclesList({ feed }: { feed: Feed<Vehicle> }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">{body}</div>
-      <VehicleInspector v={inspected} />
+      <VehicleInspector v={inspected} all={data} />
       {selected && (
         <VehicleDetailModal id={selected} onClose={() => setSelected(null)} />
       )}

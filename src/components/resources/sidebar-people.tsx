@@ -125,13 +125,33 @@ function PersonRow({
   );
 }
 
-function PersonInspector({ p }: { p: Personnel | null }) {
+function PersonInspector({
+  p,
+  all,
+}: {
+  p: Personnel | null;
+  all: Personnel[] | null;
+}) {
   const flag = p === null ? null : vitalsAlert(p);
   const Icon = p === null ? Flame : ROLE_ICON[p.role];
   return (
     <InspectorDock
       title={p === null ? null : `${p.name} — ${p.rank}`}
       icon={<Icon className="h-3.5 w-3.5 text-flame" />}
+      idle={
+        all !== null && (
+          <>
+            {GROUPS.map((g) => {
+              const n = all.filter((x) => g.statuses.includes(x.status)).length;
+              return n > 0 ? (
+                <span key={g.label}>
+                  <span className="text-bone/70">{n}</span> {g.label}
+                </span>
+              ) : null;
+            })}
+          </>
+        )
+      }
     >
       {p !== null && (
         <>
@@ -223,7 +243,7 @@ export function PersonnelList({ feed }: { feed: Feed<Personnel> }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">{body}</div>
-      <PersonInspector p={inspected} />
+      <PersonInspector p={inspected} all={data} />
       {selected && (
         <PersonDetailModal id={selected} onClose={() => setSelected(null)} />
       )}

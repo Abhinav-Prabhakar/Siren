@@ -104,7 +104,13 @@ function EquipmentRow({
   );
 }
 
-function EquipmentInspector({ item }: { item: Equipment | null }) {
+function EquipmentInspector({
+  item,
+  all,
+}: {
+  item: Equipment | null;
+  all: Equipment[] | null;
+}) {
   const mon = item === null ? null : MONITORING[item.category];
   const cd = item === null ? null : countdownState(item);
   return (
@@ -115,6 +121,30 @@ function EquipmentInspector({ item }: { item: Equipment | null }) {
           <Package className="h-3.5 w-3.5 text-flame" />
         ) : (
           <CategoryIcon category={item.category} size={16} />
+        )
+      }
+      idle={
+        all !== null && (
+          <>
+            <span>
+              <span className="text-bone/70">
+                {all.filter(needsAttention).length}
+              </span>{" "}
+              flagged
+            </span>
+            <span>
+              <span className="text-bone/70">
+                {all.filter((i) => i.status === "in_use").length}
+              </span>{" "}
+              in use
+            </span>
+            <span>
+              <span className="text-bone/70">
+                {all.filter((i) => i.status === "ready").length}
+              </span>{" "}
+              ready
+            </span>
+          </>
         )
       }
     >
@@ -257,7 +287,7 @@ export function EquipmentList({ feed }: { feed: Feed<Equipment> }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">{body}</div>
-      <EquipmentInspector item={inspected} />
+      <EquipmentInspector item={inspected} all={data} />
       {selected && (
         <EquipmentDetailModal id={selected} onClose={() => setSelected(null)} />
       )}

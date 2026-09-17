@@ -87,7 +87,6 @@ export function PositionBoard({
             onClick={() => onSelect(v.id)}
             className="group absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer focus-visible:outline-none"
             style={{ left: `${px(v)}%`, top: `${py(v)}%` }}
-            title={`${v.callsign} — ${v.status}`}
           >
             <span className="flex flex-col items-center gap-1">
               <span

@@ -17,7 +17,7 @@ import {
 import { vitalsAlert } from "@/components/people/lib";
 import type { Equipment, Personnel, Vehicle } from "@/lib/api";
 import type { Feed, ResourceTab } from "./sidebar";
-import { IconChip, Row, RowMeta } from "./rows";
+import { IconChip, Row } from "./rows";
 
 interface Flag {
   id: string;
@@ -26,12 +26,6 @@ interface Flag {
   label: string;
   detail: string;
 }
-
-const DOMAIN_LABEL: Record<ResourceTab, string> = {
-  vehicles: "fleet",
-  equipment: "kit",
-  people: "crew",
-};
 
 /**
  * Cross-domain flag queue — dead units, flagged kit, critical vitals.
@@ -118,11 +112,7 @@ export function AlertsStrip({
                   {f.detail}
                 </span>
               </span>
-              <RowMeta
-                top={DOMAIN_LABEL[f.tab]}
-                topClassName="text-ash/60"
-                bottom={<ChevronRight className="h-3.5 w-3.5" />}
-              />
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ash transition-colors group-hover:text-flame" />
             </Row>
           ))}
         </div>

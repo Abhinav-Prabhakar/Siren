@@ -42,6 +42,10 @@ const OFFLINE_STYLE = {
       type: "raster" as const,
       tiles: ["/map/hyderabad/{z}/{x}/{y}.png"],
       tileSize: 256,
+      // tiles are cached on disk for z11–14 only — outside that range
+      // MapLibre over/under-zooms the nearest level instead of 404ing
+      minzoom: 11,
+      maxzoom: 14,
       attribution: "© OpenStreetMap contributors",
     },
   },
@@ -155,6 +159,13 @@ export function FleetMap({
         style: OFFLINE_STYLE,
         center: [78.4867, 17.385],
         zoom: 12.5,
+        minZoom: 11,
+        maxZoom: 15,
+        // keep the camera inside the cached-tile coverage around Abids
+        maxBounds: [
+          [78.42, 17.32],
+          [78.55, 17.45],
+        ],
         attributionControl: { compact: true },
       });
       map.addControl(

@@ -39,6 +39,7 @@ import {
   Alert,
   Button,
   Compass,
+  Led,
   Panel,
   Skeleton,
   Timeline,
@@ -68,6 +69,7 @@ import {
   SERVICE_ICONS,
   classificationKey,
   toneTextClass,
+  toneToLed,
 } from "./incident-icons";
 import {
   PriorityMark,
@@ -326,23 +328,15 @@ function UnitRow({ v }: { v: IncidentDetail["vehicles"][number] }) {
           <span className="truncate text-[11px] text-bone/60">{v.name}</span>
         </div>
       </div>
-      <div className="hidden shrink-0 text-right sm:block">
-        <div className="flex items-center justify-end gap-1.5 font-mono text-[10px] tracking-wider text-bone/75">
-          <Gauge aria-hidden className="h-3 w-3 text-ash" />
-          {Math.round(v.speed_kmh)} km/h
-        </div>
-        <div className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.2em] text-ash/70">
-          upd {fmtAgo(v.updated_at)}
-        </div>
-      </div>
-      <span
-        className={cn(
-          "shrink-0 font-mono text-[8px] uppercase tracking-[0.2em]",
-          toneTextClass(statusTone(v.status)),
-        )}
-      >
-        {v.status.replace(/_/g, " ")}
+      <span className="hidden shrink-0 items-center gap-1.5 font-mono text-[10px] tracking-wider text-bone/75 sm:flex">
+        <Gauge aria-hidden className="h-3 w-3 text-ash" />
+        {Math.round(v.speed_kmh)} km/h
       </span>
+      <Led
+        tone={toneToLed(statusTone(v.status))}
+        pulse={v.status === "en_route" || v.status === "dispatched"}
+        size="sm"
+      />
     </div>
   );
 }
@@ -404,14 +398,11 @@ function VitalRow({ p }: { p: IncidentDetail["personnel"][number] }) {
           {Math.round(scba)}%
         </span>
       </span>
-      <span
-        className={cn(
-          "hidden shrink-0 font-mono text-[8px] uppercase tracking-[0.2em] md:block",
-          toneTextClass(statusTone(p.status)),
-        )}
-      >
-        {p.status.replace(/_/g, " ")}
-      </span>
+      <Led
+        tone={toneToLed(statusTone(p.status))}
+        size="sm"
+        className="shrink-0"
+      />
     </div>
   );
 }
@@ -490,15 +481,13 @@ function DispatchTicket({
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-            <Clock aria-hidden className="h-3 w-3" />
-            {fmtClock(d.created_at)}
-          </span>
-          {d.decided_at && (
-            <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+            {d.decided_at ? (
               <Flag aria-hidden className="h-3 w-3" />
-              decided {fmtClock(d.decided_at)}
-            </span>
-          )}
+            ) : (
+              <Clock aria-hidden className="h-3 w-3" />
+            )}
+            {fmtClock(d.decided_at ?? d.created_at)}
+          </span>
           {d.notes ? (
             <span className="truncate font-mono text-[9px] uppercase tracking-[0.15em] text-ash/80">
               {d.notes}
@@ -605,7 +594,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
 
   return (
     <Panel
-      title="Incident record"
+      title="Record"
       led={inc?.status === "active" ? "pulse" : "on"}
       right={
         inc ? (
@@ -734,7 +723,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
 
           {/* scene picture — AO plot + WX console in one instrument */}
           <section className="space-y-2.5">
-            <SectionHead icon={Crosshair} label="Scene picture" />
+            <SectionHead icon={Crosshair} label="Scene" />
             <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-flame/10">
               <SectorScope
                 blips={unitBlips}
@@ -752,7 +741,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             <section className="space-y-1">
               <SectionHead
                 icon={Truck}
-                label="Responding units"
+                label="Units"
                 count={inc.vehicles.length}
               />
               {inc.vehicles.length > 0 ? (
@@ -770,7 +759,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             <section className="space-y-1">
               <SectionHead
                 icon={Users}
-                label="Crew on incident"
+                label="Crew"
                 count={inc.personnel.length}
               />
               {inc.personnel.length > 0 ? (
@@ -813,7 +802,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             <section className="space-y-2.5">
               <SectionHead
                 icon={Phone}
-                label="Linked calls"
+                label="Calls"
                 count={inc.calls.length}
               />
               {inc.calls.length > 0 ? (
@@ -826,7 +815,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             <section className="space-y-2.5">
               <SectionHead
                 icon={PhoneOutgoing}
-                label="External contacts"
+                label="Contacts"
                 count={contacts.length}
               />
               <div className="flex flex-wrap gap-2.5">
@@ -867,9 +856,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
                           className="h-3 w-3 text-flame/80"
                         />
                         {ct.service}
-                        <span className="text-ash">
-                          {fmtClock(ct.ts)} {"//"} {fmtAgo(ct.ts)}
-                        </span>
+                        <span className="text-ash">{fmtAgo(ct.ts)}</span>
                       </span>
                     );
                   })}
@@ -884,7 +871,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
           <section className="space-y-2.5">
             <SectionHead
               icon={History}
-              label="Event log"
+              label="Log"
               count={timeline.length}
             />
             {timeline.length > 0 ? (

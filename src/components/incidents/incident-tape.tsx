@@ -1,11 +1,5 @@
-import {
-  MapPin,
-  Navigation,
-  Phone,
-  Truck,
-  type LucideIcon,
-} from "lucide-react";
-import { windDeg, type BadgeTone } from "@/components/ui";
+import { MapPin } from "lucide-react";
+import type { BadgeTone } from "@/components/ui";
 import {
   fmtElapsed,
   statusTone,
@@ -36,15 +30,6 @@ const GLYPH_TONE: Record<BadgeTone, string> = {
   dead: "text-ash/50",
   plain: "text-flame",
 };
-
-function IconCount({ icon: Icon, n }: { icon: LucideIcon; n: number }) {
-  return (
-    <span className="flex items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70">
-      <Icon aria-hidden className="h-3 w-3 text-flame/70" strokeWidth={2} />
-      {n}
-    </span>
-  );
-}
 
 /**
  * The incident log as ticker tape — hairline rows, not cards. Each row is a
@@ -87,7 +72,6 @@ export function IncidentTape({
         const selected = selectedId === inc.id;
         const active = inc.status === "active";
         const closed = inc.status === "resolved";
-        const deg = windDeg(inc.wind_dir);
 
         return (
           <button
@@ -146,8 +130,8 @@ export function IncidentTape({
               </span>
             </span>
 
-            {/* instrument cluster — one line: status, clock, metrics */}
-            <span className="flex shrink-0 items-center gap-3">
+            {/* state readout — status glyph + elapsed clock only */}
+            <span className="flex shrink-0 items-center gap-2">
               <StatusIcon
                 aria-hidden
                 strokeWidth={2.25}
@@ -165,29 +149,6 @@ export function IncidentTape({
                 title="elapsed since report"
               >
                 {fmtElapsed(inc.reported_at)}
-              </span>
-              <span aria-hidden className="h-3 w-px bg-flame/15" />
-              {inc.call_count !== undefined && (
-                <IconCount icon={Phone} n={inc.call_count} />
-              )}
-              {inc.unit_count !== undefined && (
-                <IconCount icon={Truck} n={inc.unit_count} />
-              )}
-              <span
-                className="hidden items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70 sm:flex"
-                title={`wind ${inc.wind || "—"} ${inc.wind_dir || ""}`}
-              >
-                <Navigation
-                  aria-hidden
-                  className="h-3 w-3 text-flame/70"
-                  strokeWidth={2}
-                  style={
-                    deg !== undefined
-                      ? { transform: `rotate(${deg}deg)` }
-                      : undefined
-                  }
-                />
-                {inc.wind || "—"}
               </span>
             </span>
           </button>

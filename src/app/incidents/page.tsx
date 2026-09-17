@@ -190,7 +190,7 @@ export default function IncidentsPage() {
             {/* master — sector scope over the log tape */}
             <div className="xl:col-span-5">
               <Panel
-                title="Incident board"
+                title="Board"
                 led={active > 0 ? "pulse" : "on"}
                 bodyClassName="p-0"
               >
@@ -237,7 +237,7 @@ export default function IncidentsPage() {
                 {selected ? (
                   <IncidentDetailPanel key={selected} id={selected} />
                 ) : (
-                  <Panel title="Incident record" led="off">
+                  <Panel title="Record" led="off">
                     <div className="flex h-48 items-center justify-center font-mono text-[10px] uppercase tracking-[0.3em] text-ash/60">
                       select an incident from the log //
                     </div>

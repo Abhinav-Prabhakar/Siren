@@ -1,12 +1,9 @@
 import {
   ChevronRight,
   Clock,
-  Droplets,
   MapPin,
   Phone,
-  Thermometer,
   Truck,
-  Wind,
   type LucideIcon,
 } from "lucide-react";
 import { Led, type BadgeTone } from "@/components/ui";
@@ -82,10 +79,6 @@ export function IncidentLogCard({
   const sTone = statusTone(incident.status);
   const ClassIcon =
     CLASSIFICATION_ICONS[classificationKey(incident.classification)];
-  const wind = [incident.wind, incident.wind_dir]
-    .filter((s) => s && s.trim())
-    .join(" ");
-
   return (
     <div
       className={cn("clip-chamfer [--chamfer:14px]", FRAME[pTone], className)}
@@ -105,11 +98,7 @@ export function IncidentLogCard({
             {/* header — id, lamp, age */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
-                <Led
-                  tone={toneToLed(sTone)}
-                  pulse={incident.status === "active"}
-                  size="sm"
-                />
+                <Led tone={toneToLed(sTone)} size="sm" />
                 <span className="truncate text-bone/60">{incident.id}</span>
                 <span aria-hidden className="text-ash/40">
                   {"//"}
@@ -154,7 +143,7 @@ export function IncidentLogCard({
               )}
             </div>
 
-            {/* metric strip — calls, units, on-scene weather */}
+            {/* metric strip — calls + units */}
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-flame/10 pt-2.5">
               {incident.call_count !== undefined && (
                 <CardMetric
@@ -170,27 +159,6 @@ export function IncidentLogCard({
                   label={incident.unit_count === 1 ? "unit" : "units"}
                 />
               )}
-              <span
-                aria-hidden
-                className="hidden h-3 w-px bg-flame/15 sm:block"
-              />
-              <CardMetric icon={Wind} value={wind || "—"} />
-              <CardMetric
-                icon={Thermometer}
-                value={
-                  incident.temp_c != null
-                    ? `${Math.round(incident.temp_c)}°C`
-                    : "—"
-                }
-              />
-              <CardMetric
-                icon={Droplets}
-                value={
-                  incident.humidity_pct != null
-                    ? `${Math.round(incident.humidity_pct)}%`
-                    : "—"
-                }
-              />
             </div>
           </div>
         </div>

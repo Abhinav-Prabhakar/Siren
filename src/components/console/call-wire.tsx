@@ -39,13 +39,13 @@ function EqBars() {
   );
 }
 
-function VoicePrint({ seed, live }: { seed: string; live: boolean }) {
+function VoicePrint({ seed }: { seed: string }) {
   return (
     <span aria-hidden className="flex h-4 items-end gap-[2px]">
       {voicePrint(seed).map((v, i) => (
         <span
           key={i}
-          className={cn("flex-1", live ? "bg-flame/45" : "bg-ash/20")}
+          className="flex-1 bg-flame/45"
           style={{ height: `${v * 100}%` }}
         />
       ))}
@@ -112,9 +112,11 @@ export function CallWire({
               {c.transcript || c.summary || "Transcript pending…"}
             </p>
 
-            <div className="mt-2">
-              <VoicePrint seed={c.id} live={live} />
-            </div>
+            {live && (
+              <div className="mt-2">
+                <VoicePrint seed={c.id} />
+              </div>
+            )}
 
             {extracted(c.extracted).length > 0 && (
               <div className="mt-1.5 truncate font-mono text-[9px] uppercase tracking-[0.15em] text-flame/70">

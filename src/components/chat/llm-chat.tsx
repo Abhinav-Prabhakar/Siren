@@ -160,7 +160,7 @@ export function LlmChat({ className }: { className?: string }) {
   return (
     <Panel
       title="Agent link // SIREN-1"
-      led="pulse"
+      led={linkDown ? "off" : "on"}
       className={className}
       bodyClassName="p-0"
       right={
@@ -177,9 +177,7 @@ export function LlmChat({ className }: { className?: string }) {
           >
             {purgeArmed ? "confirm?" : "purge"}
           </button>
-          <span className={linkDown ? "text-ash/70" : "text-flame"}>
-            {linkDown ? "down" : "live"}
-          </span>
+          {linkDown && <span className="text-flame">down</span>}
         </span>
       }
     >
@@ -198,7 +196,7 @@ export function LlmChat({ className }: { className?: string }) {
           <div className="flex h-full items-center justify-center gap-2.5">
             <Led tone={linkDown ? "off" : "flame"} size="sm" />
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-ash">
-              {linkDown ? "link down" : "link live — no traffic"}
+              {linkDown ? "link down" : "no traffic on the link"}
             </span>
           </div>
         ) : (

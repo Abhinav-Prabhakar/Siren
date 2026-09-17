@@ -39,12 +39,11 @@ const PIP_CLASS: Record<PipTone, string> = {
 
 interface PipSpec {
   tone: PipTone;
-  pulse?: boolean;
 }
 
 /* order = paint order: committed first, ready next, dark last */
 const VEHICLE_PIPS: Record<string, PipSpec> = {
-  on_scene: { tone: "hot", pulse: true },
+  on_scene: { tone: "hot" },
   en_route: { tone: "warm" },
   dispatched: { tone: "warm" },
   available: { tone: "cold" },
@@ -54,7 +53,7 @@ const VEHICLE_PIPS: Record<string, PipSpec> = {
 };
 
 const PERSONNEL_PIPS: Record<string, PipSpec> = {
-  on_scene: { tone: "hot", pulse: true },
+  on_scene: { tone: "hot" },
   en_route: { tone: "warm" },
   dispatched: { tone: "warm" },
   on_duty: { tone: "cold" },
@@ -93,11 +92,7 @@ function PipRow({
             <span
               key={`${status}-${i}`}
               title={status.replace(/_/g, " ")}
-              className={cn(
-                "h-3 w-1.5",
-                PIP_CLASS[s.tone],
-                s.pulse && "animate-pulse",
-              )}
+              className={cn("h-3 w-1.5", PIP_CLASS[s.tone])}
             />
           )),
         )}
@@ -310,13 +305,7 @@ export function StatusStrip({
               )}
               title="pending approvals"
             >
-              <Hourglass
-                aria-hidden
-                className={cn(
-                  "h-3.5 w-3.5",
-                  pendingCount > 0 && "animate-pulse",
-                )}
-              />
+              <Hourglass aria-hidden className="h-3.5 w-3.5" />
               {pendingCount}
             </span>
             <span
@@ -326,13 +315,7 @@ export function StatusStrip({
               )}
               title="live calls"
             >
-              <PhoneCall
-                aria-hidden
-                className={cn(
-                  "h-3.5 w-3.5",
-                  liveCalls > 0 && "animate-pulse",
-                )}
-              />
+              <PhoneCall aria-hidden className="h-3.5 w-3.5" />
               {liveCalls}
             </span>
           </div>

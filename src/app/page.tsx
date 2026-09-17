@@ -355,9 +355,8 @@ export default function ControlRoomPage() {
               onCheckedChange={(v) => void toggleNight(v)}
             />
             <Button
-              variant="solid"
+              variant="outline"
               size="sm"
-              led="on"
               onClick={() => setNewDispatchOpen(true)}
             >
               New dispatch
@@ -381,7 +380,7 @@ export default function ControlRoomPage() {
           <div className="space-y-6 xl:col-span-4">
             <Panel
               title="Active incidents"
-              led={activeIncidents.length > 0 ? "pulse" : "off"}
+              led={activeIncidents.length > 0 ? "on" : "off"}
               right={`${activeIncidents.length} on board`}
               bodyClassName="max-h-[560px] space-y-3 overflow-y-auto"
             >
@@ -412,7 +411,7 @@ export default function ControlRoomPage() {
 
             <Panel
               title="Inbound calls"
-              led={callList.some((c) => Boolean(c.live)) ? "pulse" : "off"}
+              led={callList.some((c) => Boolean(c.live)) ? "on" : "off"}
               right={`${callList.length} records`}
               bodyClassName="max-h-[520px] overflow-y-auto p-0"
             >
@@ -509,7 +508,7 @@ export default function ControlRoomPage() {
                             Detail
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             disabled={acting}
                             onClick={() => void decide(d, "reject")}
@@ -517,9 +516,8 @@ export default function ControlRoomPage() {
                             Reject
                           </Button>
                           <Button
-                            variant="solid"
+                            variant="outline"
                             size="sm"
-                            led="pulse"
                             disabled={acting}
                             onClick={() => void decide(d, "approve")}
                           >
@@ -612,7 +610,6 @@ export default function ControlRoomPage() {
               <Button
                 variant="solid"
                 size="sm"
-                led="pulse"
                 disabled={acting}
                 onClick={() => void decide(dispatchFocus, "approve")}
               >

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Truck } from "lucide-react";
 import { Led, Skeleton } from "@/components/ui";
-import { fmtClock, type Vehicle } from "@/lib/api";
+import { fmtClock, type Incident, type Vehicle } from "@/lib/api";
 import { VehicleDetailModal } from "@/components/vehicles/vehicle-detail-modal";
 import type { Feed } from "./sidebar";
 import { DockCell, fmtFree, InspectorDock } from "./rows";
@@ -73,7 +73,15 @@ function VehicleInspector({
  * whose interior fill is the fuel level. Hover docks detail, click
  * opens the unit record.
  */
-export function VehiclesList({ feed }: { feed: Feed<Vehicle> }) {
+export function VehiclesList({
+  feed,
+  incidents,
+  station,
+}: {
+  feed: Feed<Vehicle>;
+  incidents: Incident[];
+  station: { lat: number; lng: number } | null;
+}) {
   const { data, error, loading } = feed;
   const [selected, setSelected] = useState<string | null>(null);
   const [inspected, setInspected] = useState<Vehicle | null>(null);
@@ -100,6 +108,8 @@ export function VehiclesList({ feed }: { feed: Feed<Vehicle> }) {
     body = (
       <VehicleGauges
         vehicles={data}
+        incidents={incidents}
+        station={station}
         onSelect={setSelected}
         onHover={setInspected}
       />

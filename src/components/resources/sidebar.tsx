@@ -5,7 +5,7 @@ import { Package, Truck, Users, type LucideIcon } from "lucide-react";
 import { needsAttention } from "@/components/equipment/shared";
 import { vitalsAlert } from "@/components/people/lib";
 import { cn } from "@/lib/utils";
-import type { Equipment, Personnel, Vehicle } from "@/lib/api";
+import type { Equipment, Incident, Personnel, Vehicle } from "@/lib/api";
 import { EquipmentList } from "./sidebar-equipment";
 import { PersonnelList } from "./sidebar-people";
 import { VehiclesList } from "./sidebar-vehicles";
@@ -35,6 +35,8 @@ export function ResourceSidebar({
   vehicles,
   equipment,
   personnel,
+  incidents,
+  station,
   className,
 }: {
   active: ResourceTab;
@@ -42,6 +44,8 @@ export function ResourceSidebar({
   vehicles: Feed<Vehicle>;
   equipment: Feed<Equipment>;
   personnel: Feed<Personnel>;
+  incidents: Incident[];
+  station: { lat: number; lng: number } | null;
   className?: string;
 }) {
   const meta = useMemo<Record<ResourceTab, { count: number | null; flags: number }>>(() => {
@@ -112,7 +116,9 @@ export function ResourceSidebar({
       </div>
 
       {/* active manifest — list scrolls inside itself, inspector dock pinned below */}
-      {active === "vehicles" && <VehiclesList feed={vehicles} />}
+      {active === "vehicles" && (
+        <VehiclesList feed={vehicles} incidents={incidents} station={station} />
+      )}
       {active === "equipment" && <EquipmentList feed={equipment} />}
       {active === "people" && <PersonnelList feed={personnel} />}
     </div>

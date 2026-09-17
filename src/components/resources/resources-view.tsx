@@ -88,6 +88,15 @@ export function ResourcesView({ initialTab }: { initialTab: ResourceTab }) {
             vehicles={vehicles}
             equipment={equipment}
             personnel={personnel}
+            incidents={incidents.data ?? []}
+            station={
+              overview.data === null
+                ? null
+                : {
+                    lat: overview.data.station.lat,
+                    lng: overview.data.station.lng,
+                  }
+            }
             className="max-h-[70dvh] lg:h-[calc(100dvh-92px)] lg:max-h-none"
           />
         </aside>

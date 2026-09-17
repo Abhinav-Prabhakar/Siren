@@ -1,23 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Chakra_Petch, Orbitron, Share_Tech_Mono } from "next/font/google";
+import { Barlow, Barlow_Semi_Condensed, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const orbitron = Orbitron({
-  variable: "--font-orbitron",
+const barlowSemi = Barlow_Semi_Condensed({
+  variable: "--font-barlow-semi",
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800", "900"],
+  weight: ["600", "700", "800"],
 });
 
-const chakra = Chakra_Petch({
-  variable: "--font-chakra",
+const barlow = Barlow({
+  variable: "--font-barlow",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
 });
 
-const shareTech = Share_Tech_Mono({
-  variable: "--font-sharetech",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${orbitron.variable} ${chakra.variable} ${shareTech.variable} h-full antialiased`}
+      className={`${barlowSemi.variable} ${barlow.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

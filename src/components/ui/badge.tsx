@@ -8,22 +8,23 @@ const toneClasses: Record<
   { frame: string; fill: string; text: string; dot: string }
 > = {
   hot: {
-    frame: "bg-flame",
+    frame:
+      "bg-flame shadow-[0_0_14px_-2px_rgb(255_46_46/0.9)]",
     fill: "bg-wine",
-    text: "text-flame",
-    dot: "bg-flame animate-pulse",
+    text: "text-flame [text-shadow:0_0_10px_rgb(255_46_46/0.6)]",
+    dot: "bg-flame shadow-[0_0_6px_1px_rgb(255_46_46/0.9)] animate-pulse",
   },
   warm: {
-    frame: "bg-blaze/70",
+    frame: "bg-blaze/80",
     fill: "bg-smoke",
     text: "text-blaze",
-    dot: "bg-blaze",
+    dot: "bg-blaze shadow-[0_0_5px_rgb(255_106_61/0.7)]",
   },
   cold: {
-    frame: "bg-bone/25",
+    frame: "bg-bone/30",
     fill: "bg-coal",
-    text: "text-bone/70",
-    dot: "bg-bone/50",
+    text: "text-bone/80",
+    dot: "bg-bone/60",
   },
   dead: {
     frame: "bg-ash/20",
@@ -58,12 +59,12 @@ export function Badge({
     <span className={cn("clip-tag inline-flex", t.frame, className)}>
       <span
         className={cn(
-          "clip-tag m-px inline-flex items-center gap-1.5 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.25em] [--chamfer:5px]",
+          "clip-tag m-px inline-flex items-center gap-1.5 px-3 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.22em] [--chamfer:5px]",
           t.fill,
           t.text,
         )}
       >
-        {!noDot && <span aria-hidden className={cn("h-1 w-1", t.dot)} />}
+        {!noDot && <span aria-hidden className={cn("h-1.5 w-1.5", t.dot)} />}
         {children}
       </span>
     </span>

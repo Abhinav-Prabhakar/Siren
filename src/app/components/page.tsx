@@ -109,7 +109,7 @@ export default function ComponentsPage() {
               SIREN UI // gamified dispatch interface kit
             </p>
           </div>
-          <Badge tone="hot">v0.1 // WIP</Badge>
+          <Badge tone="hot">v0.2 // WIP</Badge>
         </header>
 
         <div className="space-y-8">
@@ -133,7 +133,7 @@ export default function ComponentsPage() {
             <div className="space-y-4">
               <div>
                 <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-                  Display // Orbitron Black
+                  Display // Barlow Semi Condensed 800
                 </div>
                 <div className="font-display text-4xl font-black uppercase tracking-[0.08em] text-bone">
                   Dispatch <span className="text-flame text-glow">Siren</span>
@@ -141,7 +141,7 @@ export default function ComponentsPage() {
               </div>
               <div>
                 <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-                  Body // Chakra Petch
+                  Body // Barlow 400
                 </div>
                 <p className="max-w-2xl text-sm leading-relaxed text-bone/80">
                   All units respond. Engine One and Ladder Two staged at grid
@@ -151,7 +151,7 @@ export default function ComponentsPage() {
               </div>
               <div>
                 <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-                  Mono // Share Tech Mono
+                  Mono // IBM Plex Mono 400
                 </div>
                 <p className="font-mono text-xs uppercase tracking-[0.25em] text-ash">
                   INC-4471 // CLASS: STRUCTURE // WIND 14KT NW // PRIORITY P1
@@ -163,18 +163,22 @@ export default function ComponentsPage() {
           <Section index="03" title="Buttons">
             <div className="space-y-5">
               <div className="flex flex-wrap items-center gap-4">
-                <Button size="lg">Dispatch Units</Button>
-                <Button size="md">Dispatch Units</Button>
+                <Button size="lg" led="pulse">
+                  Dispatch Units
+                </Button>
+                <Button size="md" led="on">
+                  Dispatch Units
+                </Button>
                 <Button size="sm">Dispatch Units</Button>
               </div>
               <div className="flex flex-wrap items-center gap-4">
-                <Button variant="outline" size="lg">
+                <Button variant="outline" size="lg" led="on">
                   Hold Position
                 </Button>
                 <Button variant="outline" size="md">
                   Hold Position
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" led="off">
                   Hold Position
                 </Button>
               </div>
@@ -182,12 +186,17 @@ export default function ComponentsPage() {
                 <Button variant="ghost" size="lg">
                   Recall Crew
                 </Button>
-                <Button variant="ghost" size="md">
+                <Button variant="ghost" size="md" led="on">
                   Recall Crew
                 </Button>
                 <Button variant="ghost" size="sm">
                   Recall Crew
                 </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <Button led="off">Standby</Button>
+                <Button led="on">Armed</Button>
+                <Button led="pulse">Alarm</Button>
               </div>
               <div className="flex flex-wrap items-center gap-4">
                 <Button disabled>Offline</Button>
@@ -198,13 +207,65 @@ export default function ComponentsPage() {
                   Offline
                 </Button>
               </div>
+              <div className="max-w-md">
+                <Button block led="on">
+                  Confirm All Units // Block
+                </Button>
+              </div>
               <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash">
-                href prop renders a link — hover for sheen + charge bar
+                led: off // on // pulse — href renders a link — hover for sheen
+                + charge bar, press for key-drop
               </p>
             </div>
           </Section>
 
-          <Section index="04" title="Badges">
+          <Panel
+            chamfered
+            led="pulse"
+            title="INC-4471 // Structure Fire"
+            right={<span>P1 // GRID C4</span>}
+            bodyClassName="space-y-5"
+          >
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
+                  Incident
+                </div>
+                <div className="font-display text-xl font-bold uppercase tracking-[0.06em] text-bone">
+                  Warehouse — 2nd alarm
+                </div>
+                <div className="mt-1 flex gap-2">
+                  <Badge tone="hot">En Route ×2</Badge>
+                  <Badge tone="warm">Staging ×1</Badge>
+                  <Badge tone="cold">Available ×9</Badge>
+                </div>
+              </div>
+              <div className="flex gap-8">
+                <Stat label="Committed" value="03" sub="units" />
+                <Stat label="ETA" value="4:12" sub="first due" />
+              </div>
+            </div>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <Meter label="Scene water supply" value={64} />
+              <Meter label="Air reserves — crew A" value={18} />
+            </div>
+            <div className="flex flex-wrap items-center gap-4 border-t border-flame/15 pt-5">
+              <Button size="lg" led="pulse">
+                Dispatch
+              </Button>
+              <Button variant="outline" size="lg" led="on">
+                Hold
+              </Button>
+              <Button variant="ghost" size="lg" led="off">
+                Recall
+              </Button>
+              <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
+                Awaiting human approval // agent recommendation ready
+              </span>
+            </div>
+          </Panel>
+
+          <Section index="05" title="Badges">
             <div className="flex flex-wrap items-center gap-3">
               <Badge tone="hot">On Scene</Badge>
               <Badge tone="hot">En Route</Badge>
@@ -218,7 +279,7 @@ export default function ComponentsPage() {
             </div>
           </Section>
 
-          <Section index="05" title="Meters">
+          <Section index="06" title="Meters">
             <div className="grid gap-6 sm:grid-cols-3">
               <Meter label="Fuel" value={92} />
               <Meter label="Water tank" value={64} />
@@ -226,7 +287,7 @@ export default function ComponentsPage() {
             </div>
           </Section>
 
-          <Section index="06" title="Stats">
+          <Section index="07" title="Stats">
             <div className="grid gap-6 sm:grid-cols-4">
               <Stat label="Units ready" value="12" sub="of 16 total" />
               <Stat label="Active calls" value="03" sub="P1 · P2 · P4" />
@@ -235,7 +296,7 @@ export default function ComponentsPage() {
             </div>
           </Section>
 
-          <Section index="07" title="Inputs">
+          <Section index="08" title="Inputs">
             <div className="grid gap-6 sm:grid-cols-2">
               <Input
                 id="demo-callsign"
@@ -249,9 +310,12 @@ export default function ComponentsPage() {
                 placeholder="SECTOR / GRID REF"
               />
             </div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash">
+              Focus arms the field — lamp lights, hazard bar sweeps in
+            </p>
           </Section>
 
-          <Section index="08" title="Unit cards">
+          <Section index="09" title="Unit cards">
             <div className="grid gap-5 md:grid-cols-3">
               {units.map((u) => (
                 <UnitCard key={u.id} unit={u} />
@@ -259,20 +323,42 @@ export default function ComponentsPage() {
             </div>
           </Section>
 
-          <Section index="09" title="Textures">
-            <div className="grid gap-4 sm:grid-cols-3">
+          <Section index="10" title="Panel variants">
+            <div className="grid gap-5 md:grid-cols-2">
+              <Panel title="Bracketed" led="on" right={<span>STD</span>}>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash">
+                  Default panel — machined corner brackets + rivets
+                </p>
+              </Panel>
+              <Panel
+                chamfered
+                title="Chamfered"
+                led="off"
+                right={<span>CHF</span>}
+              >
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash">
+                  Chamfered frame — clipped edge, no brackets
+                </p>
+              </Panel>
+            </div>
+          </Section>
+
+          <Section index="11" title="Textures">
+            <div className="grid gap-4 sm:grid-cols-4">
               <div className="bg-grid h-20 border border-bone/10" />
               <div className="bg-scanlines h-20 border border-bone/10 bg-smoke" />
               <div className="bg-hazard h-20 border border-bone/10" />
+              <div className="bg-hazard-tight h-20 border border-bone/10" />
             </div>
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash">
-              bg-grid // bg-scanlines // bg-hazard — utilities from globals.css
+              bg-grid // bg-scanlines // bg-hazard // bg-hazard-tight —
+              utilities from globals.css
             </p>
           </Section>
         </div>
 
         <footer className="mt-12 flex items-center justify-between border-t border-flame/20 pt-4 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-          <span>SIREN DS // BUILD 0.1</span>
+          <span>SIREN DS // BUILD 0.2</span>
           <span>SHARP // RED // NO RADIUS</span>
         </footer>
       </div>

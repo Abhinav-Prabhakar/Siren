@@ -150,10 +150,21 @@ def create_dispatch(body: DispatchIn):
     conn = get_conn()
     try:
         inc = conn.execute(
-            "SELECT id FROM incidents WHERE id = ?", (body.incident_id,)
+            "SELECT id, status FROM incidents WHERE id = ?", (body.incident_id,)
         ).fetchone()
         if inc is None:
             raise HTTPException(status_code=404, detail="incident not found")
+        if inc["status"] == "resolved":
+            raise HTTPException(
+                status_code=422,
+                detail=f"{body.incident_id} is already resolved — "
+                       "cannot dispatch to a closed incident",
+            )
+
+        # Clients may send duplicate ids; dispatch rows should be unique.
+        body.vehicle_ids = list(dict.fromkeys(body.vehicle_ids))
+        body.personnel_ids = list(dict.fromkeys(body.personnel_ids))
+        body.equipment_ids = list(dict.fromkeys(body.equipment_ids))
 
         missing = []
         for table, col, ids in (

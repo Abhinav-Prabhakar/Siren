@@ -27,6 +27,11 @@ interface Resources {
   equipment: Equipment[];
 }
 
+type FeedName = keyof Resources;
+
+/** A dispatch may reinforce any live incident — resolved ones are closed. */
+const DISPATCHABLE = new Set(["active", "contained", "monitoring"]);
+
 export interface NewDispatchModalProps {
   open: boolean;
   onClose: () => void;
@@ -44,10 +49,13 @@ function toggleId(set: Set<string>, id: string): Set<string> {
 function PickList({
   title,
   count,
+  failed,
   children,
 }: {
   title: string;
   count: number;
+  /** Feed for this list is down — show that instead of an empty list. */
+  failed?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -57,7 +65,13 @@ function PickList({
         <span>{count} picked</span>
       </div>
       <div className="max-h-32 space-y-1.5 overflow-y-auto border border-ash/15 bg-ink/60 px-3 py-2.5">
-        {children}
+        {failed ? (
+          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-flame">
+            Feed down — list unavailable
+          </span>
+        ) : (
+          children
+        )}
       </div>
     </div>
   );
@@ -75,6 +89,9 @@ export function NewDispatchModal({
   const [res, setRes] = useState<Resources | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [feedErrors, setFeedErrors] = useState<
+    Partial<Record<FeedName, string>>
+  >({});
   const [attempt, setAttempt] = useState(0);
 
   const [incidentId, setIncidentId] = useState("");
@@ -93,6 +110,7 @@ export function NewDispatchModal({
       setRes(null);
       setLoading(true);
       setLoadError(null);
+      setFeedErrors({});
       setSubmitError(null);
       setIncidentId("");
       setVehicleIds(new Set());
@@ -103,33 +121,53 @@ export function NewDispatchModal({
     }
   }
 
-  /* fetch live availability every time the console opens */
+  /* fetch live availability every time the console opens — feeds resolve
+     independently so one dead endpoint can't kill the whole dialog */
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    Promise.all([
-      api.incidents("active"),
+    Promise.allSettled([
+      api.incidents(),
       api.vehicles(),
       api.personnel("on_duty"),
       api.equipment(undefined, "ready"),
-    ])
-      .then(([incidents, vehicles, personnel, equipment]) => {
-        if (cancelled) return;
+    ]).then((results) => {
+      if (cancelled) return;
+      const names: FeedName[] = [
+        "incidents",
+        "vehicles",
+        "personnel",
+        "equipment",
+      ];
+      const errors: Partial<Record<FeedName, string>> = {};
+      const list = <T,>(r: PromiseSettledResult<T[]>, name: FeedName): T[] => {
+        if (r.status === "fulfilled") return r.value;
+        errors[name] =
+          r.reason instanceof Error ? r.reason.message : "fetch failed";
+        return [];
+      };
+      const incidents = list<Incident>(results[0], "incidents");
+      const vehicles = list<Vehicle>(results[1], "vehicles");
+      const personnel = list<Personnel>(results[2], "personnel");
+      const equipment = list<Equipment>(results[3], "equipment");
+      if (names.every((n) => errors[n] !== undefined)) {
+        /* every feed down — backend unreachable, nothing to build a
+           dispatch from */
+        setRes(null);
+        setLoadError(
+          errors.incidents ?? "availability fetch failed",
+        );
+      } else {
         setRes({
-          incidents,
+          incidents: incidents.filter((i) => DISPATCHABLE.has(i.status)),
           vehicles: vehicles.filter((v) => v.status === "available"),
           personnel,
           equipment,
         });
-        setLoading(false);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        setLoadError(
-          e instanceof Error ? e.message : "availability fetch failed",
-        );
-        setLoading(false);
-      });
+        setFeedErrors(errors);
+      }
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -142,21 +180,32 @@ export function NewDispatchModal({
     if (!canDeploy) return;
     setDeploying(true);
     setSubmitError(null);
+    let d: Dispatch;
     try {
-      const d = await api.createDispatch({
+      d = await api.createDispatch({
         incident_id: incidentId,
         vehicle_ids: [...vehicleIds],
         personnel_ids: [...personnelIds],
         equipment_ids: [...equipmentIds],
         notes: notes.trim() || undefined,
       });
-      onCreated(d);
     } catch (e) {
       setSubmitError(
         e instanceof Error ? e.message : "dispatch rejected by backend",
       );
-    } finally {
       setDeploying(false);
+      return;
+    }
+    setDeploying(false);
+    /* the dispatch is committed — a failure downstream must not be
+       reported as a refusal */
+    try {
+      onCreated(d);
+    } catch {
+      setSubmitError(
+        `${d.id} committed and approved — but the console refresh failed; ` +
+          "the dispatch is live in the log.",
+      );
     }
   }
 
@@ -198,6 +247,24 @@ export function NewDispatchModal({
           </Alert>
         )}
 
+        {Object.keys(feedErrors).length > 0 && (
+          <Alert tone="warning" title="Partial uplink failure">
+            {Object.keys(feedErrors).join(", ")} feed(s) down —{" "}
+            {Object.values(feedErrors)[0]}. Lists that loaded are live; a
+            dispatch still requires an incident pick.{" "}
+            <button
+              type="button"
+              className="cursor-pointer underline decoration-flame/60 underline-offset-2 hover:text-blaze"
+              onClick={() => {
+                setLoading(true);
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Retry fetch
+            </button>
+          </Alert>
+        )}
+
         {loading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }, (_, i) => (
@@ -220,9 +287,15 @@ export function NewDispatchModal({
           </Alert>
         ) : res === null ? null : (
           <>
-            {res.incidents.length === 0 ? (
-              <Alert tone="warning" title="No active incidents">
-                Nothing on the board to dispatch against — stand down.
+            {feedErrors.incidents !== undefined ? (
+              <Alert tone="critical" title="Incident feed down">
+                {feedErrors.incidents} — DEPLOY stays disarmed until the
+                incident list loads; there is nothing to target without it.
+              </Alert>
+            ) : res.incidents.length === 0 ? (
+              <Alert tone="warning" title="No live incidents">
+                Nothing active, contained or monitoring on the board to
+                dispatch against — stand down.
               </Alert>
             ) : (
               <Select
@@ -230,17 +303,21 @@ export function NewDispatchModal({
                 value={incidentId}
                 onChange={(e) => setIncidentId(e.target.value)}
               >
-                <option value="">— select active incident —</option>
+                <option value="">— select live incident —</option>
                 {res.incidents.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.id} — {i.classification}
+                    {i.id} · {i.status} — {i.classification}
                   </option>
                 ))}
               </Select>
             )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <PickList title="Units available" count={vehicleIds.size}>
+              <PickList
+                title="Units available"
+                count={vehicleIds.size}
+                failed={feedErrors.vehicles !== undefined}
+              >
                 {res.vehicles.length === 0 ? (
                   <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
                     No units available
@@ -260,7 +337,11 @@ export function NewDispatchModal({
                 )}
               </PickList>
 
-              <PickList title="Crew on duty" count={personnelIds.size}>
+              <PickList
+                title="Crew on duty"
+                count={personnelIds.size}
+                failed={feedErrors.personnel !== undefined}
+              >
                 {res.personnel.length === 0 ? (
                   <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
                     No crew on duty
@@ -281,7 +362,11 @@ export function NewDispatchModal({
               </PickList>
             </div>
 
-            <PickList title="Kit ready" count={equipmentIds.size}>
+            <PickList
+              title="Kit ready"
+              count={equipmentIds.size}
+              failed={feedErrors.equipment !== undefined}
+            >
               {res.equipment.length === 0 ? (
                 <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
                   No kit ready
@@ -313,6 +398,17 @@ export function NewDispatchModal({
               Manual dispatch bypasses agent review — DEPLOY commits the listed
               resources and marks them dispatched immediately.
             </p>
+            {!canDeploy && !deploying && (
+              <p className="border border-ash/15 bg-smoke/40 px-3 py-2 font-mono text-[9px] uppercase leading-relaxed tracking-[0.2em] text-blaze">
+                Deploy disarmed — needs one live incident plus at least one
+                unit, crew member or kit item.
+              </p>
+            )}
+            {deploying && (
+              <p className="border border-flame/25 bg-wine/40 px-3 py-2 font-mono text-[9px] uppercase leading-relaxed tracking-[0.2em] text-flame">
+                Deploying — committing dispatch to the backend…
+              </p>
+            )}
           </>
         )}
       </div>

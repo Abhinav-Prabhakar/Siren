@@ -136,9 +136,9 @@ export function GlyphTile({
   );
 }
 
-/** Glyphs-as-labels section header — replaces the key-value divider look. */
+/** Bare-icon section header — glyph + label + count over a fading rail. */
 export function SectionHead({
-  icon,
+  icon: Icon,
   label,
   count,
   right,
@@ -152,9 +152,12 @@ export function SectionHead({
 }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <GlyphTile icon={icon} size="sm" />
+      <Icon
+        aria-hidden
+        strokeWidth={2}
+        className="h-3.5 w-3.5 shrink-0 text-flame/80"
+      />
       <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-        {"// "}
         {label}
       </span>
       {count !== undefined && (

@@ -1,13 +1,11 @@
 import {
-  Droplets,
   MapPin,
   Navigation,
   Phone,
-  Thermometer,
   Truck,
   type LucideIcon,
 } from "lucide-react";
-import { Led, windDeg, type BadgeTone } from "@/components/ui";
+import { windDeg, type BadgeTone } from "@/components/ui";
 import {
   fmtElapsed,
   statusTone,
@@ -18,9 +16,10 @@ import { cn } from "@/lib/utils";
 import {
   CLASSIFICATION_ICONS,
   classificationKey,
-  toneToLed,
+  STATUS_ICON_FALLBACK,
+  STATUS_ICONS,
+  toneTextClass,
 } from "./incident-icons";
-import { StatusChip } from "./marks";
 
 /* severity meter — bars lit left→right, count + colour by priority grade */
 const PRIORITY_BARS: Record<IncidentPriority, { lit: number; cls: string }> = {
@@ -31,11 +30,11 @@ const PRIORITY_BARS: Record<IncidentPriority, { lit: number; cls: string }> = {
 };
 
 const GLYPH_TONE: Record<BadgeTone, string> = {
-  hot: "border-flame/30 bg-wine/60 text-flame shadow-[inset_0_0_14px_rgb(255_46_46/0.14)]",
-  warm: "border-blaze/25 bg-smoke/70 text-blaze",
-  cold: "border-bone/15 bg-smoke/60 text-bone/70",
-  dead: "border-ash/15 bg-smoke/50 text-ash/60",
-  plain: "border-flame/25 bg-wine/50 text-flame",
+  hot: "text-flame",
+  warm: "text-blaze",
+  cold: "text-bone/65",
+  dead: "text-ash/50",
+  plain: "text-flame",
 };
 
 function IconCount({ icon: Icon, n }: { icon: LucideIcon; n: number }) {
@@ -50,7 +49,7 @@ function IconCount({ icon: Icon, n }: { icon: LucideIcon; n: number }) {
 /**
  * The incident log as ticker tape — hairline rows, not cards. Each row is a
  * scan of one incident: severity bars, classification glyph, T+ mission
- * clock, and a compact instrument cluster (calls, units, wind vector, wx).
+ * clock, and a compact metric cluster (calls, units, wind vector).
  * Status does the visual work: active rows glow and pulse, resolved rows
  * sink to half-dim. Clicking a row arms the detail record.
  */
@@ -82,6 +81,8 @@ export function IncidentTape({
         const sTone = statusTone(inc.status);
         const ClassIcon =
           CLASSIFICATION_ICONS[classificationKey(inc.classification)];
+        const StatusIcon =
+          STATUS_ICONS[inc.status] ?? STATUS_ICON_FALLBACK;
         const sev = PRIORITY_BARS[inc.priority];
         const selected = selectedId === inc.id;
         const active = inc.status === "active";
@@ -95,7 +96,7 @@ export function IncidentTape({
             aria-pressed={selected}
             onClick={() => onSelect(inc.id)}
             className={cn(
-              "flex w-full cursor-pointer items-stretch gap-3.5 border-b border-flame/10 px-4 py-3 text-left transition-colors last:border-b-0",
+              "flex w-full cursor-pointer items-center gap-3.5 border-b border-flame/10 px-4 py-2.5 text-left transition-colors last:border-b-0",
               "hover:bg-wine/25 focus-visible:bg-wine/25 focus-visible:outline-none",
               selected && "bg-wine/35 shadow-[inset_2px_0_0_var(--color-flame)]",
               !selected && active && "bg-wine/10",
@@ -105,7 +106,7 @@ export function IncidentTape({
             <span
               aria-hidden
               title={inc.priority}
-              className="flex w-5 shrink-0 items-end gap-[2.5px] pb-0.5"
+              className="flex w-5 shrink-0 items-end gap-[2.5px]"
             >
               {[0, 1, 2, 3].map((i) => (
                 <span
@@ -119,50 +120,44 @@ export function IncidentTape({
               ))}
             </span>
 
-            {/* classification glyph */}
-            <span
+            {/* classification glyph — bare icon, tinted by severity */}
+            <ClassIcon
               aria-hidden
+              strokeWidth={1.75}
               className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center border",
+                "h-5 w-5 shrink-0",
                 GLYPH_TONE[pTone],
-                closed && "opacity-70",
+                closed && "opacity-60",
               )}
-            >
-              <ClassIcon strokeWidth={1.5} className="h-[22px] w-[22px]" />
-            </span>
+            />
 
-            {/* identity — id, classification, address */}
+            {/* identity — classification over id + address */}
             <span className={cn("min-w-0 flex-1", closed && "opacity-55")}>
-              <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.22em] text-ash">
-                <Led
-                  tone={toneToLed(sTone)}
-                  pulse={active}
-                  size="sm"
-                />
-                <span className="truncate text-bone/55">{inc.id}</span>
-                <span aria-hidden className="text-ash/40">
-                  {"//"}
-                </span>
-                <span className="whitespace-nowrap text-flame/80">
-                  {inc.priority}
-                </span>
-              </span>
-              <span className="mt-1 block truncate font-display text-sm font-bold uppercase leading-tight tracking-[0.1em] text-bone">
+              <span className="block truncate font-display text-sm font-bold uppercase leading-tight tracking-[0.1em] text-bone">
                 {inc.classification || "Unclassified"}
               </span>
-              <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-bone/55">
+              <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.15em] text-ash">
+                <span className="shrink-0 text-bone/50">{inc.id}</span>
                 <MapPin
                   aria-hidden
-                  className="h-3 w-3 shrink-0 text-flame/60"
+                  className="h-2.5 w-2.5 shrink-0 text-flame/50"
                 />
                 <span className="truncate">{inc.address || "—"}</span>
               </span>
             </span>
 
-            {/* instrument cluster — clock, status, live metrics */}
-            <span className="flex shrink-0 flex-col items-end justify-between gap-1.5 text-right">
-              <span className="flex items-center gap-2.5">
-                <StatusChip status={inc.status} />
+            {/* instrument cluster — status glyph, clock, live metrics */}
+            <span className="flex shrink-0 flex-col items-end gap-1 text-right">
+              <span className="flex items-center gap-2">
+                <StatusIcon
+                  aria-hidden
+                  strokeWidth={2.25}
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    toneTextClass(sTone),
+                    active && "animate-pulse",
+                  )}
+                />
                 <span
                   className={cn(
                     "font-mono text-[11px] font-semibold tabular-nums tracking-[0.08em]",
@@ -181,10 +176,6 @@ export function IncidentTape({
                   <IconCount icon={Truck} n={inc.unit_count} />
                 )}
                 <span
-                  aria-hidden
-                  className="h-3 w-px bg-flame/15"
-                />
-                <span
                   className="flex items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70"
                   title={`wind ${inc.wind || "—"} ${inc.wind_dir || ""}`}
                 >
@@ -199,24 +190,6 @@ export function IncidentTape({
                     }
                   />
                   {inc.wind || "—"}
-                </span>
-                <span className="hidden items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70 sm:flex">
-                  <Thermometer
-                    aria-hidden
-                    className="h-3 w-3 text-flame/70"
-                  />
-                  {inc.temp_c != null
-                    ? `${Math.round(inc.temp_c)}°`
-                    : "—"}
-                </span>
-                <span className="hidden items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70 md:flex">
-                  <Droplets
-                    aria-hidden
-                    className="h-3 w-3 text-flame/70"
-                  />
-                  {inc.humidity_pct != null
-                    ? `${Math.round(inc.humidity_pct)}%`
-                    : "—"}
                 </span>
               </span>
             </span>

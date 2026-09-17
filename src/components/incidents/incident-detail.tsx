@@ -13,7 +13,6 @@ import {
   FileDown,
   Flag,
   Gauge,
-  Hash,
   Heart,
   History,
   MapPin,
@@ -72,7 +71,6 @@ import {
 } from "./incident-icons";
 import {
   GlyphTile,
-  MetaCell,
   PriorityMark,
   SectionHead,
   StatusChip,
@@ -271,7 +269,7 @@ function WxBar({
 function WxConsole({ inc }: { inc: IncidentDetail }) {
   const PrecipIcon = PRECIP_ICONS[precipKey(inc.precip)];
   return (
-    <div className="flex items-center gap-4 border border-flame/15 bg-ink/60 p-3.5">
+    <div className="flex items-center gap-4 p-3.5">
       <Compass deg={windDeg(inc.wind_dir)} dim={!inc.wind_dir} />
       <div className="min-w-0 flex-1 space-y-2.5">
         <div className="flex items-baseline gap-2 font-mono text-[11px] tracking-[0.1em]">
@@ -328,9 +326,6 @@ function UnitRow({ v }: { v: IncidentDetail["vehicles"][number] }) {
           </span>
           <span className="truncate text-[11px] text-bone/60">{v.name}</span>
         </div>
-        <div className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.25em] text-ash">
-          {v.type}
-        </div>
       </div>
       <div className="hidden shrink-0 text-right sm:block">
         <div className="flex items-center justify-end gap-1.5 font-mono text-[10px] tracking-wider text-bone/75">
@@ -383,11 +378,8 @@ function VitalRow({ p }: { p: IncidentDetail["personnel"][number] }) {
           </span>
         </div>
       </div>
-      <span className="hidden shrink-0 items-baseline gap-1 font-mono text-[10px] tabular-nums text-bone/70 sm:flex">
+      <span className="hidden shrink-0 font-mono text-[10px] tabular-nums text-bone/70 sm:block">
         {bpm}
-        <span className="text-[8px] uppercase tracking-[0.2em] text-ash">
-          bpm
-        </span>
       </span>
       <span
         className="flex shrink-0 items-center gap-1.5"
@@ -670,8 +662,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             <div className="relative flex flex-wrap items-center gap-4 p-4">
               {ClassIcon && <GlyphTile icon={ClassIcon} size="lg" />}
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-                  <Hash aria-hidden className="h-3 w-3 text-flame/60" />
+                <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
                   {inc.id}
                 </div>
                 <h3 className="mt-0.5 font-display text-xl font-black uppercase tracking-[0.08em] text-bone">
@@ -695,55 +686,58 @@ export function IncidentDetailPanel({ id }: { id: string }) {
                   {fmtElapsed(inc.reported_at)}
                 </div>
                 <div className="mt-1.5 font-mono text-[8px] uppercase tracking-[0.28em] text-ash">
-                  elapsed // {fmtClock(inc.reported_at)}
+                  elapsed
                 </div>
               </div>
             </div>
-            <div className="relative grid grid-cols-2 gap-px border-t border-flame/15 bg-flame/10 sm:grid-cols-4">
-              <MetaCell icon={MapPin} label="Address" className="col-span-2">
-                {inc.address || "—"}
-              </MetaCell>
-              <MetaCell icon={Flag} label="Resolved">
-                {inc.resolved_at
-                  ? `${fmtClock(inc.resolved_at)} // ${fmtAgo(inc.resolved_at)}`
-                  : "open"}
-              </MetaCell>
-              <MetaCell
-                icon={Navigation}
-                label="Coords"
-                className="col-span-2 sm:col-span-1"
-              >
+            {/* readout line — icon fields, no cells */}
+            <div className="relative flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-flame/15 px-4 py-2.5 font-mono text-[10px] tracking-[0.12em] text-bone/70">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <MapPin aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+                <span className="truncate">{inc.address || "—"}</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Clock aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+                {fmtClock(inc.reported_at)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Flag aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+                {inc.resolved_at ? fmtClock(inc.resolved_at) : "open"}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Navigation
+                  aria-hidden
+                  className="h-3 w-3 shrink-0 text-flame/70"
+                />
                 {inc.lat != null && inc.lng != null
                   ? `${inc.lat.toFixed(4)} / ${inc.lng.toFixed(4)}`
                   : "—"}
-              </MetaCell>
+              </span>
               {inc.notes ? (
-                <MetaCell
-                  icon={NotebookPen}
-                  label="Notes"
-                  className="col-span-2 sm:col-span-4"
-                >
-                  <span className="normal-case tracking-normal">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <NotebookPen
+                    aria-hidden
+                    className="h-3 w-3 shrink-0 text-flame/70"
+                  />
+                  <span className="truncate normal-case tracking-normal text-bone/60">
                     {inc.notes}
                   </span>
-                </MetaCell>
+                </span>
               ) : null}
             </div>
           </div>
 
-          {/* scene picture — AO plot + WX console side by side */}
+          {/* scene picture — AO plot + WX console in one instrument */}
           <section className="space-y-2.5">
             <SectionHead icon={Crosshair} label="Scene picture" />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="border border-flame/15 bg-ink/60">
-                <SectorScope
-                  blips={unitBlips}
-                  center={{ lat: inc.lat, lng: inc.lng, label: "IC" }}
-                  anchor
-                  vectors
-                  className="h-44"
-                />
-              </div>
+            <div className="grid border border-flame/10 bg-ink/60 sm:grid-cols-2 sm:divide-x sm:divide-flame/10">
+              <SectorScope
+                blips={unitBlips}
+                center={{ lat: inc.lat, lng: inc.lng, label: "IC" }}
+                anchor
+                vectors
+                className="h-44"
+              />
               <WxConsole inc={inc} />
             </div>
           </section>
@@ -792,7 +786,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
               count={inc.calls.length}
             />
             {inc.calls.length > 0 ? (
-              <div className="-mx-4 border-y border-flame/10">
+              <div className="-mx-4">
                 <CallWire calls={inc.calls} extracted={asStringList} />
               </div>
             ) : (

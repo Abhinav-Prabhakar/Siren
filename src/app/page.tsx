@@ -1,80 +1,761 @@
-import Image from "next/image";
-import { Badge, Button } from "@/components/ui";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import { ConsoleNav } from "@/components/console-nav";
+import { LlmChat } from "@/components/chat/llm-chat";
+import {
+  Alert,
+  Badge,
+  Button,
+  CallCard,
+  Divider,
+  IncidentCard,
+  Led,
+  LogFeed,
+  Meter,
+  Modal,
+  PageHeader,
+  Panel,
+  Skeleton,
+  Stat,
+  WeatherStrip,
+} from "@/components/ui";
+import {
+  API_URL,
+  api,
+  fmtAgo,
+  fmtClock,
+  fmtDuration,
+  statusTone,
+  type Call,
+  type Dispatch,
+  type Incident,
+  type IncidentPriority,
+} from "@/lib/api";
+import { usePolling } from "@/lib/use-polling";
+
+const POLL_MS = 4000;
+const API_HOST = API_URL.replace(/^https?:\/\//, "");
+
+const PRIORITY_RANK: Record<IncidentPriority, number> = {
+  P1: 0,
+  P2: 1,
+  P3: 2,
+  P4: 3,
+};
+
+const VEHICLE_STATUSES = [
+  "available",
+  "dispatched",
+  "en_route",
+  "on_scene",
+  "returning",
+  "refuel",
+  "out_of_service",
+] as const;
+
+const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+
+/** `extracted` arrives as a JSON column — accept array or encoded string. */
+function asStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map(String) : [value];
+    } catch {
+      return [value];
+    }
+  }
+  return [];
+}
+
+function ChipGroup({ label, items }: { label: string; items: string[] }) {
+  if (items.length === 0) return null;
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
-      <Image
-        src="/station-bg.png"
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover object-center"
-      />
-      {/* grade the render into the ink/flame system */}
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-gradient-to-b from-ink/80 via-ink/35 to-ink/90"
-      />
-      <div
-        aria-hidden
-        className="bg-scanlines pointer-events-none absolute inset-0 opacity-50"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 shadow-[inset_0_0_180px_60px_rgb(6_6_7/0.9)]"
-      />
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="font-mono text-[8px] uppercase tracking-[0.3em] text-ash/70">
+        {label}
+        {":"}
+      </span>
+      {items.map((id) => (
+        <span
+          key={id}
+          className="clip-tag bg-smoke px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-bone/75 [--chamfer:4px]"
+        >
+          {id}
+        </span>
+      ))}
+    </div>
+  );
+}
 
-      <header className="relative z-10 flex items-center justify-between border-b border-flame/20 bg-ink/45 px-6 py-3 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="clip-tag block h-6 w-6 bg-flame [--chamfer:6px]"
-          />
-          <div>
-            <div className="font-display text-sm font-black uppercase tracking-[0.3em] text-bone">
-              Siren
-            </div>
-            <div className="font-mono text-[8px] uppercase tracking-[0.3em] text-ash">
-              Autonomous fire dispatch
-            </div>
+function PanelEmpty({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-3 border border-ash/15 bg-smoke/40 px-4 py-5">
+      <Led tone="bone" size="sm" />
+      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+        {text}
+      </span>
+    </div>
+  );
+}
+
+export default function ControlRoomPage() {
+  const overview = usePolling(() => api.overview(), POLL_MS);
+  const incidents = usePolling(() => api.incidents("active"), POLL_MS);
+  const calls = usePolling(() => api.calls(), POLL_MS);
+  const dispatches = usePolling(() => api.dispatches("pending"), POLL_MS);
+  const events = usePolling(() => api.events(40), POLL_MS);
+
+  const [dispatchFocus, setDispatchFocus] = useState<Dispatch | null>(null);
+  const [incidentFocus, setIncidentFocus] = useState<Incident | null>(null);
+  const [acting, setActing] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), 8000);
+    return () => clearTimeout(id);
+  }, [notice]);
+
+  function refreshAll() {
+    overview.refresh();
+    incidents.refresh();
+    calls.refresh();
+    dispatches.refresh();
+    events.refresh();
+  }
+
+  async function decide(d: Dispatch, intent: "approve" | "reject") {
+    if (acting) return;
+    setActing(true);
+    try {
+      if (intent === "approve") await api.approveDispatch(d.id);
+      else await api.rejectDispatch(d.id);
+      setNotice({
+        error: false,
+        text: `${d.id} ${intent === "approve" ? "approved" : "rejected"} // dispatch log updated`,
+      });
+      setDispatchFocus(null);
+      refreshAll();
+    } catch {
+      setNotice({
+        error: true,
+        text: `${d.id} // decision failed — backend unreachable`,
+      });
+    } finally {
+      setActing(false);
+    }
+  }
+
+  /* ---------- derived state ---------- */
+
+  const ov = overview.data;
+  const vCounts = ov?.counts.vehicles ?? {};
+  const pCounts = ov?.counts.personnel ?? {};
+  const eCounts = ov?.counts.equipment ?? {};
+  const totalVehicles = Object.values(vCounts).reduce((a, b) => a + b, 0);
+  const totalPersonnel = Object.values(pCounts).reduce((a, b) => a + b, 0);
+  const totalEquipment = Object.values(eCounts).reduce((a, b) => a + b, 0);
+  const unitsReady = vCounts["available"] ?? 0;
+  const unitsCommitted =
+    (vCounts["dispatched"] ?? 0) +
+    (vCounts["en_route"] ?? 0) +
+    (vCounts["on_scene"] ?? 0);
+  const crewOnDuty =
+    (pCounts["on_duty"] ?? 0) +
+    (pCounts["dispatched"] ?? 0) +
+    (pCounts["en_route"] ?? 0) +
+    (pCounts["on_scene"] ?? 0);
+  const crewResting = pCounts["resting"] ?? 0;
+  const kitReady = eCounts["ready"] ?? 0;
+
+  const activeIncidents = incidents.data ?? [];
+  const topIncident = [...activeIncidents].sort(
+    (a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority],
+  )[0];
+
+  const pendingDispatches = dispatches.data ?? [];
+
+  const callList = [...(calls.data ?? [])].sort(
+    (a, b) =>
+      Number(Boolean(b.live)) - Number(Boolean(a.live)) ||
+      Date.parse(b.started_at) - Date.parse(a.started_at),
+  );
+
+  const feedLines = [...(events.data ?? [])].reverse().map((e) => ({
+    time: fmtClock(e.ts),
+    tag: e.tag,
+    text: e.message,
+    tone: e.tone,
+  }));
+
+  const firstError =
+    overview.error ??
+    incidents.error ??
+    calls.error ??
+    dispatches.error ??
+    events.error;
+  const backendDown = firstError !== null;
+
+  /** Vehicle ids the agent has proposed for a given incident. */
+  function proposedUnits(incidentId: string): string[] | undefined {
+    const ids = pendingDispatches
+      .filter((d) => d.incident_id === incidentId)
+      .flatMap((d) => d.vehicle_ids);
+    return ids.length > 0 ? ids : undefined;
+  }
+
+  const skeletonCards = (n: number) =>
+    Array.from({ length: n }, (_, i) => (
+      <Skeleton key={i} className="h-28 w-full" />
+    ));
+
+  /* ---------- render ---------- */
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <ConsoleNav />
+
+      <main className="mx-auto w-full max-w-[1600px] flex-1 space-y-6 px-5 py-6">
+        {backendDown && (
+          <Alert
+            tone="critical"
+            title={`Backend unreachable at ${API_HOST}`}
+          >
+            Telemetry uplink lost — polling keeps retrying every 4 s and the
+            console self-heals when the API returns. Last error: {firstError}
+          </Alert>
+        )}
+
+        <PageHeader
+          title="SIREN // Control room"
+          sub={
+            ov
+              ? `${ov.station.name} — ${ov.station.address}`
+              : "uplink pending // standby"
+          }
+          status={
+            backendDown ? (
+              <Badge tone="dead">LINK DOWN</Badge>
+            ) : (
+              <Badge tone="hot">SYSTEM ONLINE</Badge>
+            )
+          }
+        />
+
+        {/* status strip — station vitals + weather at the hottest incident */}
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <Panel
+            title="Station status"
+            led={backendDown ? "off" : "on"}
+            className="lg:col-span-8"
+            bodyClassName="grid grid-cols-2 gap-5 sm:grid-cols-3 xl:grid-cols-6"
+          >
+            {ov === null ? (
+              Array.from({ length: 6 }, (_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))
+            ) : (
+              <>
+                <Stat
+                  label="Units ready"
+                  value={unitsReady}
+                  sub={`${totalVehicles} in fleet`}
+                />
+                <Stat
+                  label="Committed"
+                  value={unitsCommitted}
+                  sub="dispatched + on scene"
+                />
+                <Stat
+                  label="Crew on duty"
+                  value={crewOnDuty}
+                  sub={`${crewResting} resting`}
+                />
+                <Stat
+                  label="Active incidents"
+                  value={ov.counts.active_incidents}
+                  sub="across all priorities"
+                />
+                <Stat
+                  label="Pending approvals"
+                  value={ov.counts.pending_dispatches}
+                  sub="operator action"
+                />
+                <Stat
+                  label="Live calls"
+                  value={ov.counts.live_calls}
+                  sub="vapi intake"
+                />
+              </>
+            )}
+          </Panel>
+
+          <Panel
+            title={topIncident ? `Incident wx // ${topIncident.id}` : "Incident wx"}
+            led={topIncident ? "pulse" : "off"}
+            className="lg:col-span-4"
+            bodyClassName="flex h-full items-center"
+          >
+            {topIncident ? (
+              <div className="w-full space-y-2">
+                <WeatherStrip
+                  className="w-full"
+                  wind={topIncident.wind}
+                  windDir={topIncident.wind_dir}
+                  temp={`${Math.round(topIncident.temp_c)}°C`}
+                  humidity={`${Math.round(topIncident.humidity_pct)}%`}
+                  precip={topIncident.precip}
+                />
+                <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
+                  {topIncident.classification} — {topIncident.address}
+                </div>
+              </div>
+            ) : incidents.data === null && incidents.loading ? (
+              <Skeleton className="h-12 w-full" />
+            ) : (
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+                No active incident — wx on standby
+              </span>
+            )}
+          </Panel>
+        </section>
+
+        {/* main board */}
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
+          {/* left — incidents + inbound calls */}
+          <div className="space-y-6 xl:col-span-5">
+            <Panel
+              title="Active incidents"
+              led={activeIncidents.length > 0 ? "pulse" : "off"}
+              right={`${activeIncidents.length} on board`}
+            >
+              <div className="space-y-4">
+                {incidents.data === null && incidents.loading ? (
+                  skeletonCards(2)
+                ) : activeIncidents.length === 0 ? (
+                  <PanelEmpty text="No active incidents — all quiet on the wire" />
+                ) : (
+                  activeIncidents.map((inc) => (
+                    <IncidentCard
+                      key={inc.id}
+                      incident={{
+                        id: inc.id,
+                        priority: inc.priority,
+                        classification: inc.classification,
+                        address: inc.address,
+                        reportedAgo: fmtAgo(inc.reported_at),
+                        status: inc.status,
+                        statusTone: statusTone(inc.status),
+                        calls: `${inc.call_count ?? 0} calls`,
+                        units: proposedUnits(inc.id),
+                      }}
+                      actions={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIncidentFocus(inc)}
+                        >
+                          Detail
+                        </Button>
+                      }
+                    />
+                  ))
+                )}
+              </div>
+            </Panel>
+
+            <Panel
+              title="Inbound calls"
+              led={callList.some((c) => Boolean(c.live)) ? "pulse" : "off"}
+              right={`${callList.length} records`}
+              bodyClassName="max-h-[520px] space-y-4 overflow-y-auto"
+            >
+              {calls.data === null && calls.loading ? (
+                skeletonCards(2)
+              ) : callList.length === 0 ? (
+                <PanelEmpty text="No inbound traffic on the wire" />
+              ) : (
+                callList.map((c: Call) => (
+                  <CallCard
+                    key={c.id}
+                    call={{
+                      caller: c.caller_name?.trim() || "Unknown caller",
+                      number: c.caller_number || "—",
+                      duration: fmtDuration(c.duration_s),
+                      transcript:
+                        c.transcript || c.summary || "Transcript pending…",
+                      extracted: asStringList(c.extracted),
+                      live: Boolean(c.live),
+                    }}
+                  />
+                ))
+              )}
+            </Panel>
           </div>
-        </div>
-        <div className="flex items-center gap-5">
-          <span className="hidden font-mono text-[10px] uppercase tracking-[0.25em] text-ash md:inline">
-            STA-01 // Night watch
-          </span>
-          <Button href="/components" variant="outline" size="sm">
-            Design system
-          </Button>
-        </div>
-      </header>
 
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center gap-8 px-6 py-16 text-center">
-        <Badge tone="hot">System online // agent armed</Badge>
-        <h1 className="text-glow font-display text-7xl font-black uppercase tracking-[0.06em] text-bone md:text-9xl">
-          Siren
-        </h1>
-        <p className="max-w-xl font-mono text-[11px] uppercase leading-relaxed tracking-[0.3em] text-bone/70">
-          AI dispatch for apparatus, crew and equipment — human approved,
-          agent coordinated
-        </p>
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-5">
-          <Button href="/components" size="lg">
-            Enter console
-          </Button>
-          <Button href="/components" variant="outline" size="lg">
-            View design system
-          </Button>
-        </div>
+          {/* center — human-in-the-loop approvals + fleet readiness */}
+          <div className="space-y-6 xl:col-span-4">
+            <Panel
+              title="Pending dispatch approvals"
+              led={pendingDispatches.length > 0 ? "pulse" : "off"}
+              right={`${pendingDispatches.length} queued`}
+              chamfered
+              bodyClassName="space-y-4"
+            >
+              {notice && (
+                <Alert tone={notice.error ? "critical" : "ok"}>
+                  {notice.text}
+                </Alert>
+              )}
+              {dispatches.data === null && dispatches.loading ? (
+                skeletonCards(2)
+              ) : pendingDispatches.length === 0 ? (
+                <PanelEmpty text="Queue clear — no proposals awaiting operator" />
+              ) : (
+                pendingDispatches.map((d) => (
+                  <div
+                    key={d.id}
+                    className="border border-flame/15 bg-smoke/40"
+                  >
+                    <div className="flex items-center justify-between gap-3 border-b border-flame/10 px-3.5 py-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Led tone="blaze" pulse size="sm" />
+                        <span className="truncate font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+                          {d.id}
+                        </span>
+                        <Badge
+                          tone={
+                            d.incident_priority
+                              ? statusTone(d.incident_priority)
+                              : "plain"
+                          }
+                        >
+                          {d.incident_priority ?? "P?"}
+                        </Badge>
+                      </div>
+                      <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+                        {fmtAgo(d.created_at)}
+                      </span>
+                    </div>
+                    <div className="space-y-2.5 px-3.5 py-3">
+                      <div>
+                        <div className="font-display text-xs font-bold uppercase tracking-[0.12em] text-bone">
+                          {d.incident_classification ?? d.incident_id}
+                        </div>
+                        <div className="font-mono text-[10px] tracking-wider text-bone/60">
+                          {d.incident_address ?? d.incident_id}
+                        </div>
+                      </div>
+                      <ChipGroup label="Units" items={d.vehicle_ids} />
+                      <ChipGroup label="Crew" items={d.personnel_ids} />
+                      <ChipGroup label="Kit" items={d.equipment_ids} />
+                      {d.notes && (
+                        <p className="border-l-2 border-blaze/40 pl-2.5 text-[11px] leading-relaxed text-bone/70">
+                          {d.notes}
+                        </p>
+                      )}
+                      <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+                        proposed_by {d.proposed_by} {"//"} awaiting operator
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-3 border-t border-flame/10 px-3.5 py-2.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDispatchFocus(d)}
+                      >
+                        Detail
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={acting}
+                        onClick={() => void decide(d, "reject")}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        variant="solid"
+                        size="sm"
+                        led="pulse"
+                        disabled={acting}
+                        onClick={() => void decide(d, "approve")}
+                      >
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </Panel>
+
+            <Panel
+              title="Fleet readiness"
+              led="on"
+              right={`${unitsReady}/${totalVehicles} ready`}
+              bodyClassName="space-y-4"
+            >
+              {ov === null ? (
+                skeletonCards(1)
+              ) : (
+                <>
+                  <Meter
+                    label="Fleet ready"
+                    value={pct(unitsReady, totalVehicles)}
+                    lowAt={50}
+                  />
+                  <Meter
+                    label="Crew ready"
+                    value={pct(crewOnDuty, totalPersonnel)}
+                    lowAt={50}
+                  />
+                  <Meter
+                    label="Kit ready"
+                    value={pct(kitReady, totalEquipment)}
+                    lowAt={60}
+                  />
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-flame/10 pt-3 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+                    {VEHICLE_STATUSES.map((s) => (
+                      <div key={s} className="flex items-center justify-between">
+                        <span>{s.replace(/_/g, " ")}</span>
+                        <span className="text-bone/70">{vCounts[s] ?? 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    <Button variant="outline" size="sm" href="/vehicles">
+                      Fleet deck
+                    </Button>
+                    <Button variant="ghost" size="sm" href="/equipment">
+                      Equipment
+                    </Button>
+                    <Button variant="ghost" size="sm" href="/people">
+                      People
+                    </Button>
+                  </div>
+                </>
+              )}
+            </Panel>
+          </div>
+
+          {/* right — ops feed + agent link */}
+          <div className="space-y-6 lg:col-span-2 xl:col-span-3">
+            <Panel
+              title="Ops feed"
+              led={backendDown ? "off" : "on"}
+              right={`${feedLines.length} rows`}
+              bodyClassName="max-h-[460px] overflow-y-auto"
+            >
+              {events.data === null && events.loading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <Skeleton key={i} className="h-4 w-full" />
+                  ))}
+                </div>
+              ) : feedLines.length === 0 ? (
+                <PanelEmpty text="Feed empty — no events logged" />
+              ) : (
+                <LogFeed lines={feedLines} />
+              )}
+            </Panel>
+
+            <LlmChat />
+          </div>
+        </section>
       </main>
 
-      <footer className="relative z-10 flex items-center justify-between border-t border-flame/20 bg-ink/55 px-6 py-3 font-mono text-[9px] uppercase tracking-[0.3em] text-ash backdrop-blur-sm">
-        <span>Units: 12 ready // 03 committed</span>
-        <span className="hidden md:inline">Vapi link: ready</span>
-        <span>INC queue: 02 active</span>
+      <footer className="border-t border-flame/15 bg-ink/70">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-5 py-3 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
+          <span>
+            api {API_HOST} {"//"}{" "}
+            {backendDown ? "link down — retrying" : "uplink stable"}
+          </span>
+          <span className="hidden md:inline">
+            {ov ? `${ov.station.code} // ${ov.station.name}` : "station —"}
+          </span>
+          <span>
+            poll {POLL_MS / 1000}s {"//"} human-approved dispatch
+          </span>
+        </div>
       </footer>
+
+      {/* dispatch detail + confirm */}
+      <Modal
+        open={dispatchFocus !== null}
+        onClose={() => {
+          if (!acting) setDispatchFocus(null);
+        }}
+        title={dispatchFocus ? `Dispatch ${dispatchFocus.id}` : undefined}
+        led="blaze"
+        footer={
+          dispatchFocus ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={acting}
+                onClick={() => setDispatchFocus(null)}
+              >
+                Abort
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={acting}
+                onClick={() => void decide(dispatchFocus, "reject")}
+              >
+                Reject
+              </Button>
+              <Button
+                variant="solid"
+                size="sm"
+                led="pulse"
+                disabled={acting}
+                onClick={() => void decide(dispatchFocus, "approve")}
+              >
+                Approve dispatch
+              </Button>
+            </>
+          ) : undefined
+        }
+      >
+        {dispatchFocus && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                tone={
+                  dispatchFocus.incident_priority
+                    ? statusTone(dispatchFocus.incident_priority)
+                    : "plain"
+                }
+              >
+                {dispatchFocus.incident_priority ?? "P?"}
+              </Badge>
+              <Badge tone="warm">pending</Badge>
+              <Badge tone="dead">by {dispatchFocus.proposed_by}</Badge>
+            </div>
+            <div>
+              <div className="font-display text-sm font-bold uppercase tracking-[0.12em] text-bone">
+                {dispatchFocus.incident_classification ??
+                  dispatchFocus.incident_id}
+              </div>
+              <div className="font-mono text-[11px] tracking-wider text-bone/70">
+                {dispatchFocus.incident_address ?? dispatchFocus.incident_id}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <ChipGroup label="Units" items={dispatchFocus.vehicle_ids} />
+              <ChipGroup label="Crew" items={dispatchFocus.personnel_ids} />
+              <ChipGroup label="Kit" items={dispatchFocus.equipment_ids} />
+            </div>
+            {dispatchFocus.notes && (
+              <p className="border-l-2 border-blaze/40 pl-3 text-xs leading-relaxed text-bone/75">
+                {dispatchFocus.notes}
+              </p>
+            )}
+            <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+              proposed {fmtAgo(dispatchFocus.created_at)} {"//"} incident{" "}
+              {dispatchFocus.incident_id}
+            </div>
+            <Divider label="operator approval required" />
+            <p className="font-mono text-[10px] uppercase leading-relaxed tracking-[0.2em] text-ash">
+              Agent-proposed dispatch holds until an operator confirms. Approve
+              commits listed units and marks them dispatched; reject returns the
+              plan to the agent.
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      {/* incident detail */}
+      <Modal
+        open={incidentFocus !== null}
+        onClose={() => setIncidentFocus(null)}
+        title={incidentFocus ? `Incident ${incidentFocus.id}` : undefined}
+        led="flame"
+        footer={
+          incidentFocus ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIncidentFocus(null)}
+            >
+              Close
+            </Button>
+          ) : undefined
+        }
+      >
+        {incidentFocus && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={statusTone(incidentFocus.priority)}>
+                {incidentFocus.priority}
+              </Badge>
+              <Badge tone={statusTone(incidentFocus.status)}>
+                {incidentFocus.status}
+              </Badge>
+            </div>
+            <div>
+              <div className="font-display text-sm font-bold uppercase tracking-[0.12em] text-bone">
+                {incidentFocus.classification}
+              </div>
+              <div className="font-mono text-[11px] tracking-wider text-bone/70">
+                {incidentFocus.address}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 font-mono text-[10px] uppercase tracking-[0.2em]">
+              <div>
+                <div className="text-ash">Reported</div>
+                <div className="mt-0.5 text-bone/80">
+                  {fmtAgo(incidentFocus.reported_at)}
+                </div>
+              </div>
+              <div>
+                <div className="text-ash">Reports</div>
+                <div className="mt-0.5 text-bone/80">
+                  {incidentFocus.call_count ?? 0} calls {"//"}{" "}
+                  {incidentFocus.unit_count ?? 0} units
+                </div>
+              </div>
+            </div>
+            <WeatherStrip
+              wind={incidentFocus.wind}
+              windDir={incidentFocus.wind_dir}
+              temp={`${Math.round(incidentFocus.temp_c)}°C`}
+              humidity={`${Math.round(incidentFocus.humidity_pct)}%`}
+              precip={incidentFocus.precip}
+            />
+            {incidentFocus.notes && (
+              <p className="border-l-2 border-flame/40 pl-3 text-xs leading-relaxed text-bone/75">
+                {incidentFocus.notes}
+              </p>
+            )}
+            {pendingDispatches
+              .filter((d) => d.incident_id === incidentFocus.id)
+              .map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => {
+                    setIncidentFocus(null);
+                    setDispatchFocus(d);
+                  }}
+                  className="flex w-full cursor-pointer items-center justify-between gap-3 border border-blaze/30 bg-wine/40 px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-blaze transition-colors hover:border-blaze/60"
+                >
+                  <span>
+                    {d.id} — proposal awaiting review
+                  </span>
+                  <span>review ›</span>
+                </button>
+              ))}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

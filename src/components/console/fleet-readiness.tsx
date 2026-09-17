@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Meter, Panel, Skeleton } from "@/components/ui";
+import { Led, Meter, Panel, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/use-polling";
 
@@ -23,7 +23,7 @@ const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
  * receives navigation controls (links or tab-switchers depending on context).
  */
 export function FleetReadiness({ actions }: { actions?: ReactNode }) {
-  const { data: ov } = usePolling(() => api.overview(), 4000);
+  const { data: ov, error, loading } = usePolling(() => api.overview(), 4000);
 
   const vCounts = ov?.counts.vehicles ?? {};
   const pCounts = ov?.counts.personnel ?? {};
@@ -44,16 +44,29 @@ export function FleetReadiness({ actions }: { actions?: ReactNode }) {
   return (
     <Panel
       title="Fleet readiness"
-      led="on"
-      right={`${unitsReady}/${totalVehicles} ready`}
+      led={error !== null && ov === null ? "off" : "on"}
+      right={
+        error !== null && ov === null
+          ? "link down"
+          : `${unitsReady}/${totalVehicles} ready`
+      }
       bodyClassName="space-y-4"
     >
       {ov === null ? (
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-6 w-full" />
-        </div>
+        loading && error === null ? (
+          <div className="space-y-3">
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-full" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 border border-ash/15 bg-smoke/40 px-4 py-5">
+            <Led tone="off" size="sm" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+              Readiness feed down — backend :8000 unreachable
+            </span>
+          </div>
+        )
       ) : (
         <>
           <Meter

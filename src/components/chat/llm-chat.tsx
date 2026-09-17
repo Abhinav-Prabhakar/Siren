@@ -113,7 +113,13 @@ export function LlmChat({ className }: { className?: string }) {
       const res = await api.chat(text);
       setMessages((m) => [
         ...m,
-        { id: nextId(), role: "assistant", content: res.reply, ts: res.ts },
+        {
+          id: nextId(),
+          role: "assistant",
+          content: res.reply,
+          ts: res.ts,
+          tool_calls: res.tool_calls,
+        },
       ]);
       setLinkDown(false);
     } catch (e) {
@@ -195,6 +201,25 @@ export function LlmChat({ className }: { className?: string }) {
                         : "border-ash/25 bg-smoke/80",
                     )}
                   >
+                    {m.tool_calls !== undefined &&
+                      m.tool_calls.length > 0 && (
+                        <div className="mb-1.5 space-y-1 border-b border-ash/15 pb-1.5">
+                          {m.tool_calls.map((t, i) => (
+                            <div
+                              key={`${t.name}-${i}`}
+                              className="flex items-baseline gap-2 font-mono text-[9px] uppercase tracking-[0.2em]"
+                            >
+                              <span className="shrink-0 text-flame">⚙</span>
+                              <span className="shrink-0 text-blaze/90">
+                                {t.name}
+                              </span>
+                              <span className="min-w-0 truncate text-ash/80">
+                                {t.summary}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     <p
                       className={cn(
                         "font-mono text-[11px] leading-relaxed tracking-wide",

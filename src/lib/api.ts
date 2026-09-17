@@ -231,11 +231,19 @@ export interface TelemetryPoint {
   ts: string;
 }
 
+/** One tool the agent fired while answering — name + args + one-line record. */
+export interface ChatToolCall {
+  name: string;
+  args: Record<string, unknown>;
+  summary: string;
+}
+
 export interface ChatMessage {
   id: number;
   role: "user" | "assistant";
   content: string;
   ts: string;
+  tool_calls?: ChatToolCall[];
 }
 
 export interface Overview {
@@ -325,7 +333,11 @@ export const api = {
       `/telemetry/${entityType}/${entityId}${qs({ metric, limit: String(limit) })}`,
     ),
   chat: (message: string) =>
-    req<{ reply: string; ts: string }>("POST", "/chat", { message }),
+    req<{ reply: string; ts: string; tool_calls?: ChatToolCall[] }>(
+      "POST",
+      "/chat",
+      { message },
+    ),
   chatHistory: () => req<ChatMessage[]>("GET", "/chat/history"),
 };
 

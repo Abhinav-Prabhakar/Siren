@@ -246,6 +246,23 @@ export interface ChatMessage {
   tool_calls?: ChatToolCall[];
 }
 
+/** One SSE frame from POST /api/chat/stream. */
+export interface ChatStreamEvent {
+  type: "delta" | "tool" | "done" | "error";
+  /** delta: next chunk of reply text */
+  text?: string;
+  /** tool: record of a tool the agent just fired */
+  name?: string;
+  args?: Record<string, unknown>;
+  summary?: string;
+  /** done/error: server-side ts of the persisted assistant row */
+  ts?: string;
+  /** done: every tool fired during the turn */
+  tool_calls?: ChatToolCall[];
+  /** error: what went wrong mid-stream */
+  detail?: string;
+}
+
 export interface Overview {
   station: Station;
   counts: {
@@ -338,7 +355,49 @@ export const api = {
       "/chat",
       { message },
     ),
+  /** Streamed variant of chat — invokes onEvent per SSE frame. */
+  chatStream: async (
+    message: string,
+    onEvent: (ev: ChatStreamEvent) => void,
+  ): Promise<void> => {
+    const res = await fetch(`${API_URL}/api/chat/stream`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    if (!res.ok || !res.body) {
+      let detail = "";
+      try {
+        const body = await res.json();
+        if (body?.detail) detail = ` — ${body.detail}`;
+      } catch {
+        /* non-json error body */
+      }
+      throw new Error(`POST /chat/stream → ${res.status}${detail}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx = buf.indexOf("\n\n");
+      while (idx >= 0) {
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        for (const line of frame.split("\n")) {
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload) onEvent(JSON.parse(payload) as ChatStreamEvent);
+        }
+        idx = buf.indexOf("\n\n");
+      }
+    }
+  },
   chatHistory: () => req<ChatMessage[]>("GET", "/chat/history"),
+  clearChat: () => req<{ cleared: number }>("DELETE", "/chat/history"),
 };
 
 /* ---------- presentation helpers ---------- */

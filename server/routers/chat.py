@@ -1,5 +1,9 @@
 """POST /api/chat {message} -> {reply, ts, tool_calls}; GET /api/chat/history.
 
+POST /api/chat/stream is the same exchange over SSE — content deltas and
+tool-call records stream as they happen, terminated by a `done` event (or
+`error`). DELETE /api/chat/history wipes the log.
+
 Real LLM via the OpenAI-compatible endpoint configured by env:
   VOIDAI_API_KEY, VOIDAI_BASE_URL, VOIDAI_MODEL (default gpt-5-nano).
 
@@ -15,9 +19,10 @@ HTTP 503 (never a fake reply).
 """
 import json
 import sqlite3
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import env
@@ -146,12 +151,11 @@ def _history_messages(conn, exclude_id: Optional[int]) -> List[dict]:
     return [{"role": h["role"], "content": h["content"]} for h in history]
 
 
-def _llm_turn(conn, user_message: str,
-              exclude_id: Optional[int] = None) -> Tuple[str, List[dict]]:
-    """Run the agent loop. Returns (reply, tool_call_records).
+def _llm_setup(conn, user_message: str, exclude_id: Optional[int]):
+    """Shared agent-loop preamble: validate config, build client + messages.
 
-    Each record: {name, args, summary} — summary is the one-line operator
-    record produced by chat_tools.execute_tool.
+    Raises HTTPException(503) when the LLM isn't configured/installed —
+    callers surface it as a response error or an SSE `error` event.
     """
     api_key = env.get("VOIDAI_API_KEY")
     if not api_key:
@@ -177,6 +181,17 @@ def _llm_turn(conn, user_message: str,
         )
 
     client = OpenAI(api_key=api_key, base_url=base_url, timeout=30.0)
+    return client, model, messages
+
+
+def _llm_turn(conn, user_message: str,
+              exclude_id: Optional[int] = None) -> Tuple[str, List[dict]]:
+    """Run the agent loop. Returns (reply, tool_call_records).
+
+    Each record: {name, args, summary} — summary is the one-line operator
+    record produced by chat_tools.execute_tool.
+    """
+    client, model, messages = _llm_setup(conn, user_message, exclude_id)
     records: List[dict] = []
     reply = ""
 
@@ -234,6 +249,177 @@ def _llm_turn(conn, user_message: str,
     return reply, records
 
 
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+def _run_streamed_turn(stream) -> Iterator[Tuple[str, Optional[dict]]]:
+    """Drain one streamed completion.
+
+    Yields (delta_text, None) per content chunk and a single ("", slot) per
+    accumulated tool call once the stream ends. `slot` is
+    {id, name, arguments} assembled from the streamed tool_call deltas.
+    """
+    tool_calls: dict = {}
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        if delta is None:
+            continue
+        if delta.content:
+            yield delta.content, None
+        for tc in delta.tool_calls or []:
+            slot = tool_calls.setdefault(
+                tc.index, {"id": "", "name": "", "arguments": ""})
+            if tc.id:
+                slot["id"] = tc.id
+            if tc.function:
+                slot["name"] += tc.function.name or ""
+                slot["arguments"] += tc.function.arguments or ""
+    for i in sorted(tool_calls):
+        yield "", tool_calls[i]
+
+
+def _chat_stream_events(conn, user_message: str,
+                        exclude_id: Optional[int]) -> Iterator[str]:
+    """SSE generator — the same agent loop as _llm_turn, streaming.
+
+    Events: {type:delta,text} per token chunk, {type:tool,name,args,summary}
+    per executed tool, then {type:done,tool_calls,ts} — or {type:error,...}.
+    """
+    records: List[dict] = []
+    parts: List[str] = []
+    error: Optional[str] = None
+    reply_ts = now_iso()
+
+    try:
+        client, model, messages = _llm_setup(conn, user_message, exclude_id)
+
+        def _stream(**kwargs):
+            try:
+                return client.chat.completions.create(
+                    model=model, messages=messages, stream=True, **kwargs)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=503, detail=f"LLM request failed: {exc}")
+
+        for _ in range(MAX_TOOL_ITERATIONS):
+            content = ""
+            tool_calls: List[dict] = []
+            for piece, slot in _run_streamed_turn(_stream(tools=TOOLS)):
+                if slot is not None:
+                    tool_calls.append(slot)
+                elif piece:
+                    content += piece
+                    yield _sse({"type": "delta", "text": piece})
+            if not tool_calls:
+                parts.append(content)
+                break
+            if content.strip():
+                parts.append(content)
+            messages.append({
+                "role": "assistant",
+                "content": content or "",
+                "tool_calls": [
+                    {"id": tc["id"] or f"call_{i}", "type": "function",
+                     "function": {"name": tc["name"],
+                                  "arguments": tc["arguments"] or "{}"}}
+                    for i, tc in enumerate(tool_calls)
+                ],
+            })
+            for i, tc in enumerate(tool_calls):
+                try:
+                    args = json.loads(tc["arguments"] or "{}")
+                    if not isinstance(args, dict):
+                        args = {}
+                except json.JSONDecodeError:
+                    args = {}
+                result, summary = execute_tool(conn, tc["name"], args)
+                records.append({"name": tc["name"], "args": args,
+                                "summary": summary})
+                yield _sse({"type": "tool", "name": tc["name"],
+                            "args": args, "summary": summary})
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"] or f"call_{i}",
+                    "name": tc["name"],
+                    "content": json.dumps(result, default=str),
+                })
+        else:
+            # Iteration cap hit while still tool-calling — force a plain answer.
+            content = ""
+            for piece, _slot in _run_streamed_turn(_stream()):
+                if piece:
+                    content += piece
+                    yield _sse({"type": "delta", "text": piece})
+            parts.append(content)
+    except HTTPException as exc:
+        error = str(exc.detail)
+    except Exception as exc:  # stream can die mid-iteration
+        error = f"LLM stream failed: {exc}"
+
+    reply = "\n\n".join(p for p in parts if p.strip()).strip()
+    if error is None and not reply:
+        error = "LLM returned an empty reply"
+
+    # Persist whatever the operator saw — partial replies still hit the log.
+    if reply or records:
+        reply_ts = now_iso()
+        conn.execute(
+            """INSERT INTO chat_messages(role,content,ts,tool_calls)
+               VALUES(?,?,?,?)""",
+            ("assistant", reply, reply_ts,
+             json.dumps(records) if records else None),
+        )
+        conn.commit()
+
+    if error is not None:
+        yield _sse({"type": "error", "detail": error, "ts": reply_ts})
+    else:
+        yield _sse({"type": "done", "ts": reply_ts, "tool_calls": records})
+
+
+@router.post("/chat/stream")
+def chat_stream(body: ChatIn):
+    """Same exchange as POST /chat, but the reply streams over SSE.
+
+    The key is checked before the stream opens so misconfiguration still
+    answers a plain 503 — the user row is only persisted once we can reply.
+    """
+    message = (body.message or "").strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="message must not be empty")
+    if not env.get("VOIDAI_API_KEY"):
+        raise HTTPException(
+            status_code=503,
+            detail="LLM unavailable: VOIDAI_API_KEY is not configured (server/.env)",
+        )
+    conn = get_conn()
+    try:
+        _ensure_tool_calls_col(conn)
+        cur = conn.execute(
+            "INSERT INTO chat_messages(role,content,ts) VALUES(?,?,?)",
+            ("user", message, now_iso()),
+        )
+        conn.commit()
+    except Exception:
+        conn.close()
+        raise
+
+    def gen() -> Iterator[str]:
+        try:
+            yield from _chat_stream_events(conn, message, cur.lastrowid)
+        finally:
+            conn.close()
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.post("/chat")
 def chat(body: ChatIn):
     message = (body.message or "").strip()
@@ -282,5 +468,17 @@ def chat_history():
         return [_parse_tool_calls(r) for r in rows_dicts(conn.execute(
             "SELECT * FROM chat_messages ORDER BY id"
         ).fetchall())]
+    finally:
+        conn.close()
+
+
+@router.delete("/chat/history")
+def chat_history_clear():
+    """Wipe the whole uplink log — operator's purge switch."""
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM chat_messages")
+        conn.commit()
+        return {"cleared": cur.rowcount}
     finally:
         conn.close()

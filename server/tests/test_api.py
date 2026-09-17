@@ -343,3 +343,22 @@ def test_chat_real_llm(client):
     history = client.get("/api/chat/history").json()
     assert history[-1]["role"] == "assistant"
     assert history[-2]["role"] == "user"
+
+
+def test_chat_stream_503_without_key(client, monkeypatch):
+    monkeypatch.delenv("VOIDAI_API_KEY", raising=False)
+    r = client.post("/api/chat/stream", json={"message": "status?"})
+    assert r.status_code == 503
+    assert "VOIDAI_API_KEY" in r.json()["detail"]
+
+
+def test_chat_stream_validation(client):
+    assert client.post("/api/chat/stream", json={"message": "  "}).status_code == 422
+
+
+def test_chat_history_clear(client):
+    # guaranteed non-empty: the 503 tests above persisted user rows
+    r = client.delete("/api/chat/history")
+    assert r.status_code == 200
+    assert r.json()["cleared"] >= 1
+    assert client.get("/api/chat/history").json() == []

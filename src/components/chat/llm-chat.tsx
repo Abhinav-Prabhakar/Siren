@@ -18,6 +18,8 @@ type LineTone = "flame" | "bone" | "dead";
 
 interface Line extends ChatMessage {
   tone?: LineTone;
+  /** still receiving tokens from /api/chat/stream */
+  streaming?: boolean;
 }
 
 /** Three staggered pulse dots — "…" for a thinking agent. */
@@ -58,7 +60,7 @@ function AgentTag({ ts, dead }: { ts: string; dead?: boolean }) {
 
 /**
  * AGENT LINK // SIREN-1 — operator ⇄ dispatch-agent uplink.
- * POSTs to /api/chat, which relays to the LLM with a live station snapshot.
+ * POSTs to /api/chat/stream — tokens and tool-call records land live over SSE.
  */
 export function LlmChat({ className }: { className?: string }) {
   const [messages, setMessages] = useState<Line[]>([]);
@@ -66,11 +68,13 @@ export function LlmChat({ className }: { className?: string }) {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [linkDown, setLinkDown] = useState(false);
+  const [purgeArmed, setPurgeArmed] = useState(false);
 
   const localId = useRef(0);
   const nextId = () => --localId.current;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const purgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* hydrate from persisted history; silent-fail to an empty link */
   useEffect(() => {
@@ -88,6 +92,7 @@ export function LlmChat({ className }: { className?: string }) {
       });
     return () => {
       alive = false;
+      if (purgeTimer.current) clearTimeout(purgeTimer.current);
     };
   }, []);
 
@@ -97,43 +102,81 @@ export function LlmChat({ className }: { className?: string }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, pending, loading]);
 
+  /* two-click purge — first press arms, second wipes the uplink log */
+  function onPurge() {
+    if (!purgeArmed) {
+      setPurgeArmed(true);
+      purgeTimer.current = setTimeout(() => setPurgeArmed(false), 3000);
+      return;
+    }
+    if (purgeTimer.current) clearTimeout(purgeTimer.current);
+    setPurgeArmed(false);
+    api
+      .clearChat()
+      .then(() => setMessages([]))
+      .catch(() => setLinkDown(true));
+  }
+
   async function onTransmit(e: FormEvent) {
     e.preventDefault();
     const text = draft.trim();
     if (!text || pending) return;
 
+    const agentId = nextId();
     setMessages((m) => [
       ...m,
       { id: nextId(), role: "user", content: text, ts: new Date().toISOString() },
+      {
+        id: agentId,
+        role: "assistant",
+        content: "",
+        ts: new Date().toISOString(),
+        tool_calls: [],
+        streaming: true,
+      },
     ]);
     setDraft("");
     setPending(true);
 
+    const patch = (fn: (l: Line) => Line) =>
+      setMessages((m) => m.map((x) => (x.id === agentId ? fn(x) : x)));
+    const killLink = (detail: string) =>
+      patch((l) => ({
+        ...l,
+        streaming: false,
+        tone: "dead",
+        content: l.content
+          ? `${l.content}\nUPLINK LOST — ${detail}`
+          : `UPLINK LOST — ${detail}`,
+      }));
+
     try {
-      const res = await api.chat(text);
-      setMessages((m) => [
-        ...m,
-        {
-          id: nextId(),
-          role: "assistant",
-          content: res.reply,
-          ts: res.ts,
-          tool_calls: res.tool_calls,
-        },
-      ]);
-      setLinkDown(false);
+      await api.chatStream(text, (ev) => {
+        if (ev.type === "delta" && ev.text) {
+          patch((l) => ({ ...l, content: l.content + ev.text }));
+        } else if (ev.type === "tool") {
+          patch((l) => ({
+            ...l,
+            tool_calls: [
+              ...(l.tool_calls ?? []),
+              {
+                name: ev.name ?? "tool",
+                args: ev.args ?? {},
+                summary: ev.summary ?? "",
+              },
+            ],
+          }));
+        } else if (ev.type === "done") {
+          patch((l) => ({ ...l, streaming: false, ts: ev.ts ?? l.ts }));
+          setLinkDown(false);
+        } else if (ev.type === "error") {
+          patch((l) => ({ ...l, ts: ev.ts ?? l.ts }));
+          killLink(ev.detail ?? "stream error");
+          setLinkDown(true);
+        }
+      });
     } catch (e) {
-      const detail = e instanceof Error ? e.message : "request failed";
-      setMessages((m) => [
-        ...m,
-        {
-          id: nextId(),
-          role: "assistant",
-          content: `UPLINK LOST — ${detail}`,
-          ts: new Date().toISOString(),
-          tone: "dead",
-        },
-      ]);
+      killLink(e instanceof Error ? e.message : "request failed");
       setLinkDown(true);
     } finally {
       setPending(false);
@@ -148,8 +191,22 @@ export function LlmChat({ className }: { className?: string }) {
       className={className}
       bodyClassName="flex flex-col gap-3"
       right={
-        <span className={cn(linkDown ? "text-ash/70" : "text-flame")}>
-          LINK {linkDown ? "// DOWN" : "// LIVE"}
+        <span className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onPurge}
+            disabled={pending || loading || messages.length === 0}
+            className={cn(
+              "font-mono text-[9px] uppercase tracking-[0.25em] transition-colors",
+              "disabled:pointer-events-none disabled:opacity-40",
+              purgeArmed ? "text-flame" : "text-ash/60 hover:text-bone",
+            )}
+          >
+            {purgeArmed ? "confirm purge?" : "purge"}
+          </button>
+          <span className={cn(linkDown ? "text-ash/70" : "text-flame")}>
+            LINK {linkDown ? "// DOWN" : "// LIVE"}
+          </span>
         </span>
       }
     >
@@ -220,32 +277,29 @@ export function LlmChat({ className }: { className?: string }) {
                           ))}
                         </div>
                       )}
-                    <p
-                      className={cn(
-                        "font-mono text-[11px] leading-relaxed tracking-wide",
-                        m.tone === "dead" ? "text-ash" : "text-bone/85",
-                      )}
-                    >
-                      {m.content}
-                    </p>
+                    {m.streaming && !m.content ? (
+                      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash/70">
+                        receiving downlink
+                        <Ellipsis />
+                      </p>
+                    ) : (
+                      <p
+                        className={cn(
+                          "whitespace-pre-wrap font-mono text-[11px] leading-relaxed tracking-wide",
+                          m.tone === "dead" ? "text-ash" : "text-bone/85",
+                        )}
+                      >
+                        {m.content}
+                        {m.streaming && (
+                          <span className="ml-0.5 animate-pulse text-flame">
+                            ▌
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
               ),
-            )}
-            {pending && (
-              <div className="flex flex-col items-start gap-1">
-                <div className="flex items-center gap-2">
-                  <Led tone="blaze" pulse size="sm" />
-                  <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-flame/80">
-                    SIREN-1
-                  </span>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash/50">
-                    agent thinking
-                    <Ellipsis />
-                  </span>
-                </div>
-                <Skeleton className="h-9 w-2/3" />
-              </div>
             )}
           </>
         )}

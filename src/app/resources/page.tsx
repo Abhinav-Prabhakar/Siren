@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ResourcesView } from "@/components/resources/resources-view";
-import type { ResourceTab } from "@/components/resources/tab-rail";
+import type { ResourceTab } from "@/components/resources/sidebar";
 
 export const metadata: Metadata = { title: "Resources" };
 

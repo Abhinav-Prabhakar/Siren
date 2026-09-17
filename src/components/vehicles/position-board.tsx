@@ -53,19 +53,19 @@ export function PositionBoard({
 
   return (
     <Panel
-      title="Position board // sector grid"
+      title="Position board"
       led="on"
-      right="live gps // wgs84"
+      right="live gps"
       bodyClassName="p-3"
     >
-      <div className="bg-grid relative h-80 overflow-hidden border border-flame/15 bg-ink/70">
+      <div className="bg-grid relative h-[420px] overflow-hidden border border-flame/15 bg-ink/70">
         {/* slow radar sweep */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 animate-spin [animation-duration:9s]"
+          className="pointer-events-none absolute inset-0 animate-spin [animation-duration:12s]"
           style={{
             background:
-              "conic-gradient(from 0deg at 50% 50%, rgb(255 46 46 / 0.10), transparent 70deg)",
+              "conic-gradient(from 0deg at 50% 50%, rgb(255 46 46 / 0.07), transparent 70deg)",
           }}
         />
         {/* center crosshair */}
@@ -77,21 +77,7 @@ export function PositionBoard({
           aria-hidden
           className="absolute inset-y-0 left-1/2 border-l border-flame/10"
         />
-        <div
-          aria-hidden
-          className="bg-scanlines pointer-events-none absolute inset-0 opacity-60"
-        />
 
-        {/* frame readouts */}
-        <span className="absolute left-2 top-1.5 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
-          lat {maxLat.toFixed(4)}
-        </span>
-        <span className="absolute bottom-1.5 left-2 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
-          lat {minLat.toFixed(4)}
-        </span>
-        <span className="absolute right-2 top-1.5 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
-          lng {maxLng.toFixed(4)}
-        </span>
         <span className="absolute bottom-1.5 right-2 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
           {station} {"//"} sector
         </span>

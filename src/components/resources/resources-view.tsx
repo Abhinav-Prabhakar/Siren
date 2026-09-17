@@ -105,6 +105,15 @@ export function ResourcesView({ initialTab }: { initialTab: ResourceTab }) {
       {boardSelected && (
         <VehicleDetailModal
           id={boardSelected}
+          incidents={incidents.data ?? []}
+          station={
+            overview.data === null
+              ? null
+              : {
+                  lat: overview.data.station.lat,
+                  lng: overview.data.station.lng,
+                }
+          }
           onClose={() => setBoardSelected(null)}
         />
       )}

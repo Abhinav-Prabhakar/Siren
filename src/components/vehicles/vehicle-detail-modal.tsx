@@ -26,6 +26,7 @@ import {
   fmtClock,
   statusTone,
   type Equipment,
+  type Incident,
   type Personnel,
   type PersonnelStatus,
   type VehicleDetail,
@@ -34,6 +35,8 @@ import { usePolling } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
 import { CategoryIcon } from "@/components/equipment/monitoring";
 import { ROLE_SHORT } from "@/components/people/lib";
+import { Minimap } from "@/components/resources/minimap";
+import { targetOf } from "@/components/resources/vehicle-shared";
 import { Silhouette } from "@/components/resources/vehicle-gauges";
 
 /** battery_v (~11.5–14.4v) → 0–100 for the tank board. */
@@ -220,10 +223,12 @@ function DetailBody({
   v,
   fuelSeries,
   speedSeries,
+  target,
 }: {
   v: VehicleDetail;
   fuelSeries: number[];
   speedSeries: number[];
+  target: { lat: number; lng: number } | null;
 }) {
   const tone = statusTone(v.status);
   const dead = v.status === "out_of_service";
@@ -308,8 +313,11 @@ function DetailBody({
           icon={MapPin}
           value={`${Math.abs(v.lat).toFixed(2)}°${v.lat >= 0 ? "N" : "S"} ${Math.abs(v.lng).toFixed(2)}°${v.lng >= 0 ? "E" : "W"}`}
         />
-        <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.2em] text-ash/60">
-          upd {fmtAgo(v.updated_at)}
+        <span className="ml-auto flex items-center gap-3">
+          <Minimap v={v} target={target} />
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash/60">
+            upd {fmtAgo(v.updated_at)}
+          </span>
         </span>
       </div>
 
@@ -360,9 +368,13 @@ function DetailBody({
  */
 export function VehicleDetailModal({
   id,
+  incidents,
+  station,
   onClose,
 }: {
   id: string;
+  incidents: Incident[];
+  station: { lat: number; lng: number } | null;
   onClose: () => void;
 }) {
   const { data, error, loading } = usePolling(
@@ -406,7 +418,12 @@ export function VehicleDetailModal({
               {error} — showing last synced record; polling continues every 4s.
             </Alert>
           )}
-          <DetailBody v={v} fuelSeries={fuelSeries} speedSeries={speedSeries} />
+          <DetailBody
+            v={v}
+            fuelSeries={fuelSeries}
+            speedSeries={speedSeries}
+            target={targetOf(v, incidents, station)}
+          />
         </div>
       ) : null}
     </Modal>

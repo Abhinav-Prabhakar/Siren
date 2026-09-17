@@ -112,8 +112,6 @@ export function VehiclesList({
     body = (
       <VehicleGauges
         vehicles={data}
-        incidents={incidents}
-        station={station}
         onSelect={setSelected}
         onHover={setInspected}
       />
@@ -125,7 +123,12 @@ export function VehiclesList({
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">{body}</div>
       <VehicleInspector v={inspected} all={data} />
       {selected && (
-        <VehicleDetailModal id={selected} onClose={() => setSelected(null)} />
+        <VehicleDetailModal
+          id={selected}
+          incidents={incidents}
+          station={station}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );

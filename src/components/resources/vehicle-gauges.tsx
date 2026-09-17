@@ -2,14 +2,8 @@
 
 import { useId } from "react";
 import type { BadgeTone } from "@/components/ui";
-import {
-  statusTone,
-  type Incident,
-  type Vehicle,
-  type VehicleType,
-} from "@/lib/api";
+import { statusTone, type Vehicle, type VehicleType } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Minimap } from "./minimap";
 import { fmtFree, Row, RowMeta, TONE_TEXT } from "./rows";
 import { placeOf, STATUS_SHORT } from "./vehicle-shared";
 
@@ -276,14 +270,10 @@ const STATUS_RANK: Record<Vehicle["status"], number> = {
 /** Fleet as a column of silhouette gauges — fill level reads fuel. */
 export function VehicleGauges({
   vehicles,
-  incidents,
-  station,
   onSelect,
   onHover,
 }: {
   vehicles: Vehicle[];
-  incidents: Incident[];
-  station: { lat: number; lng: number } | null;
   onSelect: (id: string) => void;
   onHover: (v: Vehicle | null) => void;
 }) {
@@ -292,19 +282,6 @@ export function VehicleGauges({
       STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
       a.callsign.localeCompare(b.callsign),
   );
-
-  /** Where the unit is heading — drives the minimap needle. */
-  const targetFor = (v: Vehicle): { lat: number; lng: number } | null => {
-    if (
-      (v.status === "dispatched" || v.status === "en_route") &&
-      v.incident_id !== null
-    ) {
-      const inc = incidents.find((i) => i.id === v.incident_id);
-      return inc === undefined ? null : { lat: inc.lat, lng: inc.lng };
-    }
-    if (v.status === "returning") return station;
-    return null;
-  };
 
   return (
     <div>
@@ -326,7 +303,6 @@ export function VehicleGauges({
                 {v.type} · {placeOf(v)}
               </span>
             </span>
-            <Minimap v={v} target={targetFor(v)} />
             <RowMeta
               top={STATUS_SHORT[v.status]}
               topClassName={TONE_TEXT[tone]}

@@ -46,12 +46,7 @@ export function Alert({ tone = "info", title, className, children }: AlertProps)
   return (
     <div
       role={tone === "critical" ? "alert" : "status"}
-      className={cn(
-        "relative flex gap-3 border px-4 py-3",
-        t.frame,
-        tone === "critical" && "shadow-[0_0_24px_-6px_rgb(255_46_46/0.5)]",
-        className,
-      )}
+      className={cn("relative flex gap-3 border px-4 py-3", t.frame, className)}
     >
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px]", t.rail)} />
       <Led tone={t.led} pulse={tone === "critical"} className="mt-1 shrink-0" />

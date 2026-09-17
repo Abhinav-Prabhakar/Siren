@@ -21,12 +21,11 @@ export function Divider({
       aria-hidden
       className={cn("flex items-center gap-3", className)}
     >
-      <span className="h-px flex-1 bg-gradient-to-r from-transparent via-flame/30 to-flame/40" />
+      <span className="h-px flex-1 bg-flame/15" />
       <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-        {"// "}
         {label}
       </span>
-      <span className="h-px flex-1 bg-gradient-to-l from-transparent via-flame/30 to-flame/40" />
+      <span className="h-px flex-1 bg-flame/15" />
     </div>
   );
 }

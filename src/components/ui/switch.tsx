@@ -12,7 +12,7 @@ export interface SwitchProps {
   className?: string;
 }
 
-/** Chunky industrial toggle — reads as a physical console switch. */
+/** Chamfered toggle switch. */
 export function Switch({
   label,
   checked,
@@ -46,23 +46,15 @@ export function Switch({
       <span
         aria-hidden
         className={cn(
-          "clip-tag relative h-6 w-12 transition-colors [--chamfer:5px]",
-          on ? "bg-flame" : "bg-ash/30",
+          "clip-tag relative h-6 w-11 transition-colors [--chamfer:5px]",
+          on ? "bg-flame" : "bg-ash/25",
         )}
       >
-        <span
-          className={cn(
-            "clip-tag absolute inset-px transition-colors [--chamfer:4px]",
-            on ? "bg-wine" : "bg-ink",
-          )}
-        />
+        <span className="clip-tag absolute inset-px bg-ink [--chamfer:4px]" />
         <span
           className={cn(
             "absolute top-1/2 h-4 w-4 -translate-y-1/2 transition-all duration-150",
-            "bg-gradient-to-b shadow-[0_1px_2px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.3)]",
-            on
-              ? "left-[calc(100%-1.25rem)] from-blaze via-flame to-blood shadow-[0_0_10px_rgb(255_46_46/0.6)]"
-              : "left-1 from-ash/70 via-ash/50 to-ink",
+            on ? "left-[calc(100%-1.25rem)] bg-flame" : "left-1 bg-ash/60",
           )}
         />
       </span>

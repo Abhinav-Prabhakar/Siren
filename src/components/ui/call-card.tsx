@@ -24,7 +24,7 @@ export function CallCard({
   className?: string;
 }) {
   return (
-    <div className={cn("clip-chamfer bg-ash/25 [--chamfer:16px]", className)}>
+    <div className={cn("clip-chamfer bg-flame/25 [--chamfer:16px]", className)}>
       <div className="clip-chamfer m-px bg-coal [--chamfer:15px]">
         <div className="flex items-center justify-between gap-3 border-b border-flame/15 px-4 py-2.5">
           <div className="flex items-center gap-2.5">

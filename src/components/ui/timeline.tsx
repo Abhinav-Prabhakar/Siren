@@ -20,19 +20,19 @@ export function Timeline({
     <ol className={cn("relative space-y-4", className)}>
       <span
         aria-hidden
-        className="absolute bottom-1 left-[5px] top-1 w-px bg-gradient-to-b from-flame/50 via-flame/20 to-transparent"
+        className="absolute bottom-1 left-[5px] top-1 w-px bg-flame/20"
       />
       {items.map((item, i) => (
         <li key={i} className="relative pl-6">
           <span
             aria-hidden
             className={cn(
-              "absolute left-0 top-1 h-[11px] w-[11px] rotate-45 border",
+              "absolute left-0 top-1 h-[11px] w-[11px] rotate-45 border bg-coal",
               item.tone === "flame"
-                ? "border-flame bg-wine shadow-[0_0_8px_rgb(255_46_46/0.6)]"
+                ? "border-flame"
                 : item.tone === "bone"
-                  ? "border-bone/50 bg-coal"
-                  : "border-ash/40 bg-coal",
+                  ? "border-bone/50"
+                  : "border-ash/40",
             )}
           />
           <div className="flex items-baseline gap-3">

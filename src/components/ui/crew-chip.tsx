@@ -21,7 +21,7 @@ export function CrewChip({
   return (
     <span
       className={cn(
-        "clip-tag inline-flex items-stretch bg-flame/40 [--chamfer:8px]",
+        "clip-tag inline-flex items-stretch bg-flame/25 [--chamfer:8px]",
         className,
       )}
     >

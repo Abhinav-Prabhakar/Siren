@@ -13,7 +13,7 @@ export function Select({ label, className, id, children, ...props }: SelectProps
           {label}
         </span>
       )}
-      <span className="relative flex items-center border border-ash/25 bg-ink transition focus-within:border-flame focus-within:shadow-[0_0_0_1px_var(--color-flame),0_0_18px_-4px_rgb(255_46_46/0.6)]">
+      <span className="relative flex items-center border border-ash/25 bg-ink transition focus-within:border-flame">
         <select
           id={id}
           className={cn(
@@ -27,9 +27,9 @@ export function Select({ label, className, id, children, ...props }: SelectProps
         </select>
         <span
           aria-hidden
-          className="pointer-events-none absolute right-3 font-mono text-xs text-flame"
+          className="pointer-events-none absolute right-3 text-[10px] text-flame"
         >
-          {"//"}
+          ▾
         </span>
       </span>
     </label>

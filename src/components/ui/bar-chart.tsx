@@ -49,14 +49,14 @@ export function BarChart({
                   "w-full transition-all duration-300",
                   d.muted
                     ? "bg-ash/25 group-hover:bg-ash/40"
-                    : "bg-gradient-to-t from-blood via-[#d01a24] to-flame shadow-[0_0_12px_-2px_rgb(255_46_46/0.5)] group-hover:to-blaze",
+                    : "bg-flame group-hover:bg-blaze",
                 )}
                 style={{ height: `${(d.value / max) * 100}%` }}
               />
             </div>
           ))}
         </div>
-        <div aria-hidden className="absolute inset-x-0 bottom-0 border-t border-flame/30" />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 border-t border-ash/20" />
       </div>
       <div className="mt-1.5 flex gap-2">
         {data.map((d) => (

@@ -54,7 +54,6 @@ export function RadialGauge({
             stroke="var(--color-flame)" strokeWidth="8"
             strokeDasharray={`${(v / 100) * c} ${c}`}
             transform="rotate(-90 60 60)"
-            style={{ filter: "drop-shadow(0 0 5px rgb(255 46 46 / 0.55))" }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -103,17 +102,9 @@ export function RadialGauge({
         <path
           d={arc(cx, cy, r, 0, Math.max(valueDeg, 0.5))}
           fill="none"
-          stroke="url(#gauge-grad)"
+          stroke="var(--color-flame)"
           strokeWidth="7"
-          style={{ filter: "drop-shadow(0 0 5px rgb(255 46 46 / 0.55))" }}
         />
-        <defs>
-          <linearGradient id="gauge-grad" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--color-blood)" />
-            <stop offset="60%" stopColor="var(--color-flame)" />
-            <stop offset="100%" stopColor="var(--color-blaze)" />
-          </linearGradient>
-        </defs>
         {/* needle */}
         <line
           x1={cx} y1={cy} x2={needle.x} y2={needle.y}

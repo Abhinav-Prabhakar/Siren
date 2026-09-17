@@ -49,7 +49,7 @@ export function Tabs({
             className={cn(
               "relative flex cursor-pointer items-center gap-2 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.25em] transition-colors",
               isActive
-                ? "bg-wine/50 text-flame"
+                ? "bg-flame/10 text-flame"
                 : "text-ash hover:bg-flame/5 hover:text-bone",
             )}
           >
@@ -63,7 +63,7 @@ export function Tabs({
             <span
               aria-hidden
               className={cn(
-                "absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-blood via-flame to-blaze transition-opacity",
+                "absolute inset-x-0 bottom-0 h-[2px] bg-flame transition-opacity",
                 isActive ? "opacity-100" : "opacity-0",
               )}
             />

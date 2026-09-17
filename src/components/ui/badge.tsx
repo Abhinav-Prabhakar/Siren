@@ -8,33 +8,32 @@ const toneClasses: Record<
   { frame: string; fill: string; text: string; dot: string }
 > = {
   hot: {
-    frame:
-      "bg-flame shadow-[0_0_14px_-2px_rgb(255_46_46/0.9)]",
+    frame: "bg-flame",
     fill: "bg-wine",
-    text: "text-flame [text-shadow:0_0_10px_rgb(255_46_46/0.6)]",
-    dot: "bg-flame shadow-[0_0_6px_1px_rgb(255_46_46/0.9)] animate-pulse",
+    text: "text-flame",
+    dot: "bg-flame animate-pulse",
   },
   warm: {
-    frame: "bg-blaze/80",
+    frame: "bg-blaze/70",
     fill: "bg-smoke",
     text: "text-blaze",
-    dot: "bg-blaze shadow-[0_0_5px_rgb(255_106_61/0.7)]",
+    dot: "bg-blaze",
   },
   cold: {
-    frame: "bg-bone/30",
+    frame: "bg-bone/25",
     fill: "bg-coal",
     text: "text-bone/80",
     dot: "bg-bone/60",
   },
   dead: {
-    frame: "bg-ash/20",
+    frame: "bg-ash/15",
     fill: "bg-coal",
     text: "text-ash",
     dot: "bg-ash/40",
   },
   plain: {
-    frame: "bg-flame/40",
-    fill: "bg-wine/50",
+    frame: "bg-flame/30",
+    fill: "bg-coal",
     text: "text-bone/80",
     dot: "bg-flame/70",
   },

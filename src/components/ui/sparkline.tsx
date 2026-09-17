@@ -62,7 +62,6 @@ export function Sparkline({
         stroke="var(--color-flame)"
         strokeWidth="1.5"
         strokeLinejoin="miter"
-        style={{ filter: "drop-shadow(0 0 4px rgb(255 46 46 / 0.5))" }}
       />
       {marker && (
         <rect
@@ -72,7 +71,6 @@ export function Sparkline({
           height="4"
           transform={`rotate(45 ${last[0]} ${last[1]})`}
           fill="var(--color-flame)"
-          className="animate-pulse"
         />
       )}
     </svg>

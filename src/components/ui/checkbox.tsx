@@ -45,16 +45,11 @@ export function Checkbox({
       <span
         aria-hidden
         className={cn(
-          "clip-tag flex h-4.5 w-4.5 items-center justify-center transition-colors [--chamfer:4px]",
+          "clip-tag flex h-4 w-4 items-center justify-center transition-colors [--chamfer:4px]",
           on ? "bg-flame" : "bg-ash/30 group-hover:bg-flame/60",
         )}
       >
-        <span
-          className={cn(
-            "clip-tag flex h-[calc(100%-2px)] w-[calc(100%-2px)] items-center justify-center transition-colors [--chamfer:3px]",
-            on ? "bg-wine" : "bg-ink",
-          )}
-        >
+        <span className="clip-tag flex h-[calc(100%-2px)] w-[calc(100%-2px)] items-center justify-center bg-ink [--chamfer:3px]">
           <svg
             viewBox="0 0 10 10"
             className={cn(

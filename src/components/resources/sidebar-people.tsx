@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import {
   dutyLed,
+  ROLE_LABELS,
   ROLE_SHORT,
   STATUS_LABELS,
   STATUS_ORDER,
@@ -29,6 +30,7 @@ import {
 import type { Feed } from "./sidebar";
 import {
   DockCell,
+  fmtPos,
   GroupLabel,
   IconChip,
   InspectorDock,
@@ -158,6 +160,8 @@ function PersonInspector({
             {p.incident_id !== null && ` · ${p.incident_id}`}
           </DockCell>
           <DockCell label="Unit">{p.vehicle_id ?? "—"}</DockCell>
+          <DockCell label="Position">{fmtPos(p.lat, p.lng)}</DockCell>
+          <DockCell label="Role">{ROLE_LABELS[p.role]}</DockCell>
           <DockCell label="Heart rate">
             <span
               className={

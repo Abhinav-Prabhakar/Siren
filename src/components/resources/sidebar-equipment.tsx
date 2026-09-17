@@ -165,6 +165,7 @@ function EquipmentInspector({
               : `${Math.round(item.battery_pct)}%`}
           </DockCell>
           <DockCell label="Condition">{Math.round(item.condition_pct)}%</DockCell>
+          <DockCell label="Updated">{fmtAgo(item.updated_at)}</DockCell>
         </>
       )}
     </InspectorDock>

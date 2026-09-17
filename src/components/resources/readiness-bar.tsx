@@ -19,19 +19,18 @@ const SEGMENTS = 8;
 /** icon · block segments · n/total — one glance per domain. */
 function ReadyGroup({
   Icon,
+  label,
   ready,
   total,
 }: {
   Icon: LucideIcon;
+  label: string;
   ready: number;
   total: number;
 }) {
   const filled = total > 0 ? Math.round((ready / total) * SEGMENTS) : 0;
   return (
-    <span
-      className="flex items-center gap-2.5"
-      title={`${ready} of ${total} ready`}
-    >
+    <span className="flex items-center gap-2.5">
       <Icon className="h-4 w-4 shrink-0 text-ash" />
       <span className="flex gap-[3px]">
         {Array.from({ length: SEGMENTS }, (_, i) => (
@@ -44,6 +43,9 @@ function ReadyGroup({
       <span className="font-mono text-[10px] tabular-nums">
         <span className="text-bone">{total > 0 ? ready : "—"}</span>
         <span className="text-ash/50">/{total > 0 ? total : "—"}</span>
+      </span>
+      <span className="font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
+        {label}
       </span>
     </span>
   );
@@ -80,22 +82,25 @@ export function ReadinessBar({
       {down ? (
         <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
           <Led tone="off" size="sm" />
-          feeds down
+          feeds down — backend unreachable
         </span>
       ) : (
         <>
           <ReadyGroup
             Icon={Truck}
+            label="fleet"
             ready={vs ? vs.filter((v) => v.status === "available").length : 0}
             total={vs?.length ?? 0}
           />
           <ReadyGroup
             Icon={Users}
+            label="crew"
             ready={ps ? ps.filter((p) => ON_DUTY.has(p.status)).length : 0}
             total={ps?.length ?? 0}
           />
           <ReadyGroup
             Icon={Package}
+            label="kit"
             ready={
               es
                 ? es.filter((i) => i.status === "ready" && !needsAttention(i))

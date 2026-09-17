@@ -51,8 +51,8 @@ export function AlertsStrip({
         id: `v-${v.id}`,
         tab: "vehicles",
         Icon: Truck,
-        label: v.name,
-        detail: `${v.callsign} · out of service`,
+        label: `${v.callsign} — ${v.name}`,
+        detail: "out of service",
       });
     }
     for (const i of equipment.data ?? []) {
@@ -61,7 +61,7 @@ export function AlertsStrip({
         id: `e-${i.id}`,
         tab: "equipment",
         Icon: Package,
-        label: i.name,
+        label: `${i.id} — ${i.name}`,
         detail: attentionReasons(i)[0] ?? "flagged",
       });
     }
@@ -71,7 +71,7 @@ export function AlertsStrip({
         id: `p-${p.id}`,
         tab: "people",
         Icon: HeartPulse,
-        label: p.name,
+        label: `${p.id} — ${p.name}`,
         detail: `HR ${p.heart_rate} · SCBA ${Math.round(p.scba_pct)}%`,
       });
     }

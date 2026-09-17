@@ -93,6 +93,21 @@
     0 0 48px rgb(255 46 46 / 0.22);
 }
 
+/* live-call equalizer — pair with origin-bottom + per-bar delay/duration */
+@utility animate-eq {
+  animation: eq 1s ease-in-out infinite;
+}
+
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
 /* range thumb — used by <Slider> */
 @layer components {
   .siren-range {

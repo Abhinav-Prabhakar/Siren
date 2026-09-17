@@ -1,111 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Ambulance,
-  Biohazard,
-  Fuel,
-  LifeBuoy,
-  Radio,
-  Truck,
-  type LucideIcon,
-} from "lucide-react";
+import { Truck, Warehouse, Waypoints, type LucideIcon } from "lucide-react";
 import { Led, Skeleton } from "@/components/ui";
-import {
-  fmtAgo,
-  fmtClock,
-  statusTone,
-  type Vehicle,
-  type VehicleStatus,
-  type VehicleType,
-} from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { fmtAgo, fmtClock, type Vehicle } from "@/lib/api";
 import { VehicleDetailModal } from "@/components/vehicles/vehicle-detail-modal";
 import type { Feed } from "./sidebar";
-import {
-  DockCell,
-  fmtFree,
-  fmtPos,
-  GroupLabel,
-  IconChip,
-  InspectorDock,
-  Row,
-  RowMeta,
-  TONE_TEXT,
-} from "./rows";
+import { DockCell, fmtFree, fmtPos, InspectorDock } from "./rows";
+import { STATUS_SHORT, TYPE_ICON } from "./vehicle-shared";
+import { VehicleBay } from "./vehicle-bay";
+import { VehicleGauges } from "./vehicle-gauges";
+import { VehicleSpine } from "./vehicle-spine";
 
-const STATUS_SHORT: Record<VehicleStatus, string> = {
-  available: "avail",
-  dispatched: "disp",
-  en_route: "en rte",
-  on_scene: "scene",
-  returning: "ret",
-  refuel: "refuel",
-  out_of_service: "oos",
-};
-
-const TYPE_ICON: Record<VehicleType, LucideIcon> = {
-  pumper: Truck,
-  tender: Fuel,
-  ladder: Truck,
-  rescue: LifeBuoy,
-  ambulance: Ambulance,
-  hazmat: Biohazard,
-  command: Radio,
-  special: Truck,
-};
-
-/** Manifest groups — committed work first, dead metal last. */
-const GROUPS: { label: string; statuses: VehicleStatus[] }[] = [
+/** Dock idle summary groups — same buckets the spine uses. */
+const GROUPS: { label: string; statuses: Vehicle["status"][] }[] = [
   { label: "Committed", statuses: ["dispatched", "en_route", "on_scene"] },
   { label: "Ready", statuses: ["available"] },
   { label: "Return / refuel", statuses: ["returning", "refuel"] },
   { label: "Out of service", statuses: ["out_of_service"] },
 ];
 
-/** Where the unit sits, in one word. */
-function placeOf(v: Vehicle): string {
-  if (v.incident_id !== null) return v.incident_id;
-  if (v.status === "available") return `${v.station_id} bay`;
-  if (v.status === "out_of_service") return "dark";
-  return "in transit";
-}
+type FleetView = "spine" | "bay" | "gauges";
 
-function VehicleRow({
-  vehicle: v,
-  onSelect,
-  onHover,
-}: {
-  vehicle: Vehicle;
-  onSelect: (id: string) => void;
-  onHover: (v: Vehicle | null) => void;
-}) {
-  const tone = statusTone(v.status);
-  const Icon = TYPE_ICON[v.type];
-  return (
-    <Row
-      onClick={() => onSelect(v.id)}
-      onHover={(h) => onHover(h ? v : null)}
-      dimmed={v.status === "out_of_service"}
-    >
-      <IconChip tone={tone}>
-        <Icon className="h-4 w-4" />
-      </IconChip>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-display text-[13px] font-bold uppercase tracking-[0.1em] text-bone">
-          {v.callsign}
-        </span>
-        <span className="block truncate font-mono text-[9px] uppercase tracking-[0.15em] text-ash">
-          {v.type} · {placeOf(v)}
-        </span>
-      </span>
-      <RowMeta
-        top={STATUS_SHORT[v.status]}
-        topClassName={TONE_TEXT[tone]}
-        bottom={v.free_at !== null ? `free ${fmtFree(v.free_at)}` : ""}
-      />
-    </Row>
-  );
-}
+const VIEWS: { id: FleetView; Icon: LucideIcon; label: string }[] = [
+  { id: "spine", Icon: Waypoints, label: "spine" },
+  { id: "bay", Icon: Warehouse, label: "bay" },
+  { id: "gauges", Icon: Truck, label: "gauge" },
+];
 
 function VehicleInspector({
   v,
@@ -141,7 +63,9 @@ function VehicleInspector({
             {v.incident_id !== null && ` · ${v.incident_id}`}
           </DockCell>
           <DockCell label="Next free">
-            {v.free_at !== null ? `${fmtFree(v.free_at)} · ${fmtClock(v.free_at)}` : "—"}
+            {v.free_at !== null
+              ? `${fmtFree(v.free_at)} · ${fmtClock(v.free_at)}`
+              : "—"}
           </DockCell>
           <DockCell label="Position">{fmtPos(v.lat, v.lng)}</DockCell>
           <DockCell label="Speed">
@@ -159,54 +83,76 @@ function VehicleInspector({
   );
 }
 
+/**
+ * The fleet manifest — three renderings of the same data, switched by
+ * the icon row: dispatch spine (transit map), apparatus bay (floor
+ * plan), silhouette gauges (vehicle-as-meter). Hover docks detail,
+ * click opens the unit record.
+ */
 export function VehiclesList({ feed }: { feed: Feed<Vehicle> }) {
   const { data, error, loading } = feed;
+  const [view, setView] = useState<FleetView>("spine");
   const [selected, setSelected] = useState<string | null>(null);
   const [inspected, setInspected] = useState<Vehicle | null>(null);
 
-  let body;
-  if (data === null && loading) {
-    body = (
-      <div className="space-y-2 p-4">
-        {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-12 w-full" />
-        ))}
-      </div>
-    );
-  } else if (data === null) {
-    body = (
-      <div className="flex items-center gap-3 px-4 py-6">
-        <Led tone="off" size="sm" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
-          {error ?? "Fleet feed down"}
-        </span>
-      </div>
-    );
-  } else {
-    body = GROUPS.map((g) => {
-      const inGroup = data
-        .filter((v) => g.statuses.includes(v.status))
-        .sort((a, b) => a.callsign.localeCompare(b.callsign));
-      if (inGroup.length === 0) return null;
-      return (
-        <div key={g.label}>
-          <GroupLabel label={g.label} count={inGroup.length} />
-          {inGroup.map((v) => (
-            <VehicleRow
-              key={v.id}
-              vehicle={v}
-              onSelect={setSelected}
-              onHover={setInspected}
-            />
-          ))}
-        </div>
-      );
-    });
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto pb-2">{body}</div>
+      {/* view switcher */}
+      <div className="flex shrink-0 items-center justify-end gap-1 border-b border-flame/15 px-3 py-1.5">
+        {VIEWS.map(({ id, Icon, label }) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={view === id}
+            onClick={() => setView(id)}
+            className={cn(
+              "flex cursor-pointer items-center gap-1.5 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.2em] transition-colors",
+              view === id
+                ? "bg-flame/10 text-flame"
+                : "text-ash hover:text-bone",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+        {data === null && loading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : data === null ? (
+          <div className="flex items-center gap-3 px-4 py-6">
+            <Led tone="off" size="sm" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+              {error ?? "Fleet feed down"}
+            </span>
+          </div>
+        ) : view === "spine" ? (
+          <VehicleSpine
+            vehicles={data}
+            onSelect={setSelected}
+            onHover={setInspected}
+          />
+        ) : view === "bay" ? (
+          <VehicleBay
+            vehicles={data}
+            onSelect={setSelected}
+            onHover={setInspected}
+          />
+        ) : (
+          <VehicleGauges
+            vehicles={data}
+            onSelect={setSelected}
+            onHover={setInspected}
+          />
+        )}
+      </div>
+
       <VehicleInspector v={inspected} all={data} />
       {selected && (
         <VehicleDetailModal id={selected} onClose={() => setSelected(null)} />

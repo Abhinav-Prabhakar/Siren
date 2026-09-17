@@ -16,7 +16,6 @@ import {
   Divider,
   Led,
   Modal,
-  PageHeader,
   Panel,
   Skeleton,
   Switch,
@@ -35,7 +34,6 @@ import {
 } from "@/components/incidents/incident-icons";
 import { GlyphTile, PriorityMark } from "@/components/incidents/marks";
 import {
-  API_URL,
   api,
   fmtAgo,
   fmtClock,
@@ -50,7 +48,6 @@ import { usePolling } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 4000;
-const API_HOST = API_URL.replace(/^https?:\/\//, "");
 
 const PRIORITY_RANK: Record<IncidentPriority, number> = {
   P1: 0,
@@ -326,10 +323,7 @@ export default function ControlRoomPage() {
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 space-y-6 px-5 py-6">
         {backendDown && (
-          <Alert
-            tone="critical"
-            title={`Backend unreachable at ${API_HOST}`}
-          >
+          <Alert tone="critical" title="Backend unreachable">
             Telemetry uplink lost — polling keeps retrying every 4 s and the
             control room self-heals when the API returns. Last error:{" "}
             {firstError}
@@ -342,45 +336,41 @@ export default function ControlRoomPage() {
           </Alert>
         )}
 
-        <PageHeader
-          title="SIREN // Control room"
-          sub={
-            ov
-              ? `${ov.station.name} — ${ov.station.address}`
-              : "uplink pending // standby"
-          }
-          status={
-            backendDown ? (
-              <Badge tone="dead">LINK DOWN</Badge>
-            ) : staleData ? (
-              <Badge tone="warm">LINK DEGRADED</Badge>
-            ) : (
-              <Badge tone="hot">SYSTEM ONLINE</Badge>
-            )
-          }
-          actions={
-            <div className="flex items-center gap-4">
-              {nightMode && <Badge tone="hot">AUTO-DISPATCH ARMED</Badge>}
-              <Switch
-                label="Night watch // auto-approve"
-                checked={nightMode}
-                disabled={settings.data === null || nightBusy}
-                onCheckedChange={(v) => void toggleNight(v)}
-              />
-              <Button variant="outline" size="sm" href="/resources">
-                Resources deck
-              </Button>
-              <Button
-                variant="solid"
-                size="sm"
-                led="on"
-                onClick={() => setNewDispatchOpen(true)}
-              >
-                New dispatch
-              </Button>
-            </div>
-          }
-        />
+        {/* slim ops bar — station identity left, operator actions right */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="flex items-center gap-2.5 font-mono text-[10px] uppercase tracking-[0.25em]">
+            <Led
+              tone={backendDown ? "off" : "blaze"}
+              size="sm"
+              pulse={!backendDown}
+            />
+            <span className="text-bone/80">
+              {ov ? ov.station.name : "uplink pending"}
+            </span>
+            {ov && (
+              <span className="hidden text-ash sm:inline">
+                {"//"} {ov.station.address}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            {nightMode && <Badge tone="hot">AUTO-DISPATCH ARMED</Badge>}
+            <Switch
+              label="Night watch"
+              checked={nightMode}
+              disabled={settings.data === null || nightBusy}
+              onCheckedChange={(v) => void toggleNight(v)}
+            />
+            <Button
+              variant="solid"
+              size="sm"
+              led="on"
+              onClick={() => setNewDispatchOpen(true)}
+            >
+              New dispatch
+            </Button>
+          </div>
+        </div>
 
         {/* command strip — posture, threat, wx, wire at a glance */}
         <StatusStrip
@@ -464,24 +454,22 @@ export default function ControlRoomPage() {
               ) : pendingDispatches.length === 0 ? (
                 <PanelEmpty text="Queue clear — no proposals awaiting operator" />
               ) : (
-                pendingDispatches.map((d) => {
-                  const tone = d.incident_priority
-                    ? statusTone(d.incident_priority)
-                    : "plain";
-                  const ClassIcon =
-                    CLASSIFICATION_ICONS[
-                      classificationKey(d.incident_classification ?? "")
-                    ];
-                  return (
-                    <div
-                      key={d.id}
-                      className="flex items-stretch border border-flame/15 bg-smoke/30"
-                    >
-                      <span
-                        aria-hidden
-                        className={cn("w-1 shrink-0", PROPOSAL_RAIL[tone])}
-                      />
-                      <div className="min-w-0 flex-1 px-3.5 py-3">
+                <div className="divide-y divide-flame/10">
+                  {pendingDispatches.map((d) => {
+                    const tone = d.incident_priority
+                      ? statusTone(d.incident_priority)
+                      : "plain";
+                    const ClassIcon =
+                      CLASSIFICATION_ICONS[
+                        classificationKey(d.incident_classification ?? "")
+                      ];
+                    return (
+                      <div key={d.id} className="flex items-stretch">
+                        <span
+                          aria-hidden
+                          className={cn("w-1 shrink-0", PROPOSAL_RAIL[tone])}
+                        />
+                        <div className="min-w-0 flex-1 px-3.5 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-2.5">
                             <GlyphTile icon={ClassIcon} size="md" />
@@ -516,41 +504,37 @@ export default function ControlRoomPage() {
                           </p>
                         )}
 
-                        <div className="mt-3 flex items-center justify-between gap-3">
-                          <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-ash/70">
-                            {d.id} {"//"} {d.proposed_by}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setDispatchFocus(d)}
-                            >
-                              Detail
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={acting}
-                              onClick={() => void decide(d, "reject")}
-                            >
-                              Reject
-                            </Button>
-                            <Button
-                              variant="solid"
-                              size="sm"
-                              led="pulse"
-                              disabled={acting}
-                              onClick={() => void decide(d, "approve")}
-                            >
-                              Approve
-                            </Button>
-                          </div>
+                        <div className="mt-3 flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDispatchFocus(d)}
+                          >
+                            Detail
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={acting}
+                            onClick={() => void decide(d, "reject")}
+                          >
+                            Reject
+                          </Button>
+                          <Button
+                            variant="solid"
+                            size="sm"
+                            led="pulse"
+                            disabled={acting}
+                            onClick={() => void decide(d, "approve")}
+                          >
+                            Approve
+                          </Button>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
+                      </div>
+                    );
+                  })}
+                </div>
               )}
               {dispatches.data !== null && (
                 <>
@@ -601,25 +585,6 @@ export default function ControlRoomPage() {
           </div>
         </section>
       </main>
-
-      <footer className="border-t border-flame/15 bg-ink/70">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-5 py-3 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-          <span className="flex items-center gap-2">
-            <Led
-              tone={backendDown ? "off" : "blaze"}
-              size="sm"
-              pulse={!backendDown}
-            />
-            {backendDown ? "link down — retrying" : "uplink stable"}
-          </span>
-          <span className="hidden md:inline">
-            {ov ? `${ov.station.code} // ${ov.station.name}` : "station —"}
-          </span>
-          <span>
-            {nightMode ? "night watch // auto-approve" : "human-approved dispatch"}
-          </span>
-        </div>
-      </footer>
 
       {/* dispatch detail + confirm */}
       <Modal

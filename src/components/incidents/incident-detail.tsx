@@ -62,20 +62,14 @@ import {
 import { usePolling } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
 import {
-  CLASSIFICATION_ICONS,
   DISPATCH_ICON_FALLBACK,
   DISPATCH_ICONS,
   SERVICE_ICON_FALLBACK,
   SERVICE_ICONS,
-  classificationKey,
   toneTextClass,
   toneToLed,
 } from "./incident-icons";
-import {
-  PriorityMark,
-  SectionHead,
-  StatusChip,
-} from "./marks";
+import { SectionHead } from "./marks";
 import { SectorScope, type ScopeBlip } from "./sector-scope";
 
 const POLL_MS = 4000;
@@ -575,9 +569,6 @@ export function IncidentDetailPanel({ id }: { id: string }) {
 
   const contacts = inc?.external_contacts ?? [];
   const timeline = inc ? buildTimeline(inc, events) : [];
-  const ClassIcon = inc
-    ? CLASSIFICATION_ICONS[classificationKey(inc.classification)]
-    : null;
   const unitBlips: ScopeBlip[] = inc
     ? inc.vehicles.map((v) => ({
         id: v.id,
@@ -594,21 +585,32 @@ export function IncidentDetailPanel({ id }: { id: string }) {
 
   return (
     <Panel
-      title="Record"
+      title={`Record // ${id}`}
       led={inc?.status === "active" ? "pulse" : "on"}
       right={
         inc ? (
-          <Button
-            variant="outline"
-            size="sm"
-            led="on"
-            href={api.reportUrl(inc.id)}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <FileDown aria-hidden className="h-3 w-3" />
-              Report
+          <span className="flex items-center gap-3">
+            <span
+              className={cn(
+                "font-mono text-[11px] font-semibold tabular-nums tracking-[0.08em]",
+                inc.status === "active" ? "text-flame" : "text-bone/60",
+              )}
+              title="elapsed since report"
+            >
+              {fmtElapsed(inc.reported_at)}
             </span>
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              led="on"
+              href={api.reportUrl(inc.id)}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <FileDown aria-hidden className="h-3 w-3" />
+                Report
+              </span>
+            </Button>
+          </span>
         ) : undefined
       }
     >
@@ -638,36 +640,8 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             </Alert>
           )}
 
-          {/* identity — one line: glyph, id, classification, state, elapsed */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            {ClassIcon && (
-              <ClassIcon
-                aria-hidden
-                strokeWidth={2}
-                className="h-4 w-4 shrink-0 text-flame"
-              />
-            )}
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
-              {inc.id}
-            </span>
-            <h3 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-bone">
-              {inc.classification || "Unclassified"}
-            </h3>
-            <StatusChip status={inc.status} />
-            <PriorityMark priority={inc.priority} />
-            <span
-              className={cn(
-                "ml-auto font-mono text-xs font-semibold tabular-nums tracking-[0.08em]",
-                inc.status === "active" ? "text-flame" : "text-bone/60",
-              )}
-              title="elapsed since report"
-            >
-              {fmtElapsed(inc.reported_at)}
-            </span>
-          </div>
-
           {/* readout line — icon fields, no cells */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-flame/10 pt-3 font-mono text-[10px] tracking-[0.12em] text-bone/70">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 font-mono text-[10px] tracking-[0.12em] text-bone/70">
             <span className="flex min-w-0 items-center gap-1.5">
               <MapPin aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
               <span className="truncate">{inc.address || "—"}</span>

@@ -83,21 +83,12 @@ export function ConsoleNav() {
                 href={l.href}
                 title={`${l.label} — press ${i + 1}`}
                 className={cn(
-                  "flex items-center gap-2 border border-transparent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.25em] transition-colors",
+                  "border border-transparent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.25em] transition-colors",
                   active
                     ? "border-flame/40 bg-wine/50 text-flame"
                     : "text-ash hover:border-flame/20 hover:text-bone",
                 )}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "text-[8px] tabular-nums",
-                    active ? "text-flame/70" : "text-ash/40",
-                  )}
-                >
-                  {i + 1}
-                </span>
                 {l.label}
               </Link>
             );

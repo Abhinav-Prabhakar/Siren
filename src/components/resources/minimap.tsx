@@ -161,9 +161,9 @@ export function Minimap({
       style={{ width: BOX * DOCK, height: BOX * DOCK }}
       aria-hidden
     >
-      {/* anchored bottom-right so it swells over the dialog, not the layout */}
+      {/* centered on the docked footprint — swells out in every direction */}
       <span
-        className="absolute bottom-0 right-0 z-20 block origin-bottom-right scale-[0.3] transition-transform duration-200 ease-out hover:scale-100"
+        className="absolute left-1/2 top-1/2 z-20 block -translate-x-1/2 -translate-y-1/2 scale-[0.3] transition-transform duration-200 ease-out hover:scale-100"
         style={{ width: BOX, height: BOX }}
       >
         <Compass bearing={bearing} size={BOX} />

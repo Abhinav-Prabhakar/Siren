@@ -1,0 +1,189 @@
+{
+  "name": "SIREN Emergency Intake",
+  "firstMessage": "SIREN dispatch. What is your emergency?",
+  "firstMessageMode": "assistant-speaks-first",
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "temperature": 0.2,
+    "maxTokens": 250,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are SIREN, the emergency-intake voice agent for an autonomous fire-dispatch control room. You answer emergency calls calmly, quickly, and professionally.\n\nGOALS — gather, in priority order:\n1. What is happening (classification: structure_fire, wildfire, mva, medical, hazmat, gas_leak, rescue, alarm, or other) and how severe it is (priority P1 life-threatening, P2 urgent, P3 routine, P4 informational).\n2. Exact address or location. Repeat it back to confirm.\n3. Hazards: people trapped, fire spreading, fuel/chemicals, downed lines, weapons.\n4. Casualties: injuries, people inside, unconscious persons.\n5. Caller name and callback number.\n\nRULES:\n- Stay calm. Short sentences. One question at a time. Never argue with a panicked caller; gently steer them back to the facts.\n- As soon as you have a classification and an address, call the create_incident tool. Do not wait for a perfect picture — you can refine later.\n- If the call describes a location already reported, call create_incident anyway — the system groups repeat callers into the same incident automatically, or pass the incident_id you were given.\n- As new facts arrive (more hazards, casualties, corrected address), call update_incident.\n- When the incident is understood, call dispatch_units to propose a response. You PROPOSE dispatches only — a human operator approves them. Never tell the caller units are 'on the way' as confirmed; say help is being coordinated.\n- If the caller is in immediate danger (inside a burning building, carbon monoxide), give brief life-safety guidance first (get out, stay low, do not re-enter), then continue intake.\n- Never fabricate details. If unsure of an address, ask the caller to repeat or spell it.\n- When the caller confirms nothing else is needed, summarize in one sentence and end the call.\n\nVOICE STYLE: measured, authoritative, reassuring. No jargon. Confirm critical facts by reading them back."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "create_incident",
+          "description": "Log a new incident reported by the caller. Call as soon as classification and address are known. If the address matches an open incident, the backend links this call to the existing incident and returns matched_existing=true.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "classification": {
+                "type": "string",
+                "description": "Incident type",
+                "enum": ["structure_fire", "wildfire", "mva", "medical", "hazmat", "gas_leak", "rescue", "alarm", "other"]
+              },
+              "priority": {
+                "type": "string",
+                "description": "P1 life-threatening, P2 urgent, P3 routine, P4 informational",
+                "enum": ["P1", "P2", "P3", "P4"]
+              },
+              "address": {
+                "type": "string",
+                "description": "Street address or location of the incident, as confirmed with the caller"
+              },
+              "incident_id": {
+                "type": "string",
+                "description": "Existing incident id if this call concerns an already-reported incident"
+              },
+              "lat": { "type": "number", "description": "Latitude if known" },
+              "lng": { "type": "number", "description": "Longitude if known" },
+              "hazards": { "type": "string", "description": "Reported hazards: trapped persons, chemicals, downed lines, spread risk" },
+              "casualties": { "type": "string", "description": "Reported injuries or people inside" },
+              "notes": { "type": "string", "description": "Any other relevant intake details" }
+            },
+            "required": ["classification", "address"]
+          }
+        },
+        "async": false,
+        "server": { "url": "https://<your-tunnel>/api/vapi/webhook" },
+        "messages": [
+          { "type": "request-start", "content": "Logging that now, one moment." },
+          { "type": "request-failed", "content": "I am having trouble logging that — please stay on the line." }
+        ]
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "update_incident",
+          "description": "Update an existing incident with new information from the caller — changed address, escalation, new hazards, casualties, or status. Match by incident_id or by the same address.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "incident_id": { "type": "string", "description": "Incident id returned by create_incident" },
+              "address": { "type": "string", "description": "Address used to match the incident if no id is known" },
+              "classification": {
+                "type": "string",
+                "enum": ["structure_fire", "wildfire", "mva", "medical", "hazmat", "gas_leak", "rescue", "alarm", "other"]
+              },
+              "priority": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] },
+              "status": { "type": "string", "enum": ["active", "contained", "monitoring", "resolved"] },
+              "hazards": { "type": "string" },
+              "casualties": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "async": false,
+        "server": { "url": "https://<your-tunnel>/api/vapi/webhook" },
+        "messages": [
+          { "type": "request-start", "content": "Updating the incident record." },
+          { "type": "request-failed", "content": "The record update did not go through — continuing intake." }
+        ]
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "dispatch_units",
+          "description": "Propose a unit dispatch for the incident. Creates a PENDING dispatch for human operator approval — it never sends units directly. Call once the incident is understood. Pass specific unit ids if known; otherwise the backend proposes an appropriate mix based on classification.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "incident_id": { "type": "string", "description": "Incident id returned by create_incident" },
+              "address": { "type": "string", "description": "Address used to match the incident if no id is known" },
+              "vehicle_ids": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Specific vehicle ids to propose, if known"
+              },
+              "personnel_ids": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Specific personnel ids to propose, if known"
+              },
+              "equipment_ids": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Specific equipment ids to propose, if known"
+              },
+              "notes": { "type": "string", "description": "Dispatch rationale or special instructions for the operator" }
+            }
+          }
+        },
+        "async": false,
+        "server": { "url": "https://<your-tunnel>/api/vapi/webhook" },
+        "messages": [
+          { "type": "request-start", "content": "Coordinating a response proposal now." },
+          { "type": "request-complete", "content": "Help is being coordinated. Stay on the line if the situation changes." },
+          { "type": "request-failed", "content": "I could not queue a dispatch automatically — a dispatcher has been alerted." }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "model": "eleven_turbo_v2_5",
+    "stability": 0.6,
+    "similarityBoost": 0.75,
+    "speed": 1.0
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-3",
+    "language": "en"
+  },
+  "serverUrl": "https://<your-tunnel>/api/vapi/webhook",
+  "serverMessages": [
+    "assistant-request",
+    "conversation-update",
+    "end-of-call-report",
+    "function-call",
+    "hang",
+    "status-update",
+    "tool-calls",
+    "transcript"
+  ],
+  "endCallMessage": "SIREN has logged your report. Responders are being coordinated. Stay safe.",
+  "endCallPhrases": ["goodbye", "that's all", "that is all", "nothing else"],
+  "maxDurationSeconds": 600,
+  "silenceTimeoutSeconds": 30,
+  "backgroundSound": "off",
+  "backchannelingEnabled": true,
+  "startSpeakingPlan": {
+    "waitSeconds": 0.4,
+    "smartEndpointingPlan": { "provider": "livekit" }
+  },
+  "analysisPlan": {
+    "summaryPlan": {
+      "enabled": true,
+      "prompt": "Summarize this emergency-intake call in one or two sentences: incident type, address, hazards, casualties, and whether dispatch was proposed."
+    },
+    "structuredDataPlan": {
+      "enabled": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "classification": { "type": "string" },
+          "address": { "type": "string" },
+          "priority": { "type": "string" },
+          "caller_name": { "type": "string" },
+          "callback_number": { "type": "string" },
+          "hazards": { "type": "string" },
+          "casualties": { "type": "string" },
+          "incident_id": { "type": "string" },
+          "dispatch_proposed": { "type": "boolean" }
+        }
+      }
+    },
+    "successEvaluationPlan": {
+      "enabled": true,
+      "prompt": "Evaluate whether the intake gathered classification, confirmed address, hazards, casualties, and caller info, and whether an incident and dispatch proposal were created.",
+      "rubric": "Checklist"
+    }
+  }
+}

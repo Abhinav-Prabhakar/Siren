@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "./badge";
-import { Button } from "./button";
 import { Led } from "./led";
 
 export interface IncomingCall {

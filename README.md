@@ -82,13 +82,19 @@ In the end, we build a neat PDF report for anyone to read that includes everythi
 
 ## Tech
 
-- [Next.js](https://nextjs.org) — dashboard & app
+- [Next.js](https://nextjs.org) — dashboard & app (localhost:3000)
+- Python [FastAPI](https://fastapi.tiangolo.com) + SQLite — backend API (localhost:8000)
 - [Vapi](https://vapi.ai) — LLM call handling
-- Deployed on [Vercel](https://vercel.com)
 
 ## Getting started
 
 ```bash
+# backend
+cd server && python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --port 8000
+
+# frontend (separate terminal)
 npm install
 npm run dev
 ```

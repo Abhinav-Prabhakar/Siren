@@ -42,3 +42,10 @@ next-env.d.ts
 
 # local experiment
 draft/
+
+# python backend
+server/.venv/
+server/__pycache__/
+**/__pycache__/
+*.pyc
+server/siren.db

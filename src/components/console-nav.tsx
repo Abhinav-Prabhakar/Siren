@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Led } from "@/components/ui/led";
 import { api } from "@/lib/api";
@@ -18,7 +18,29 @@ const LINKS = [
 /** Persistent control-room top bar — sharp, red-on-black, zero radius. */
 export function ConsoleNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [apiUp, setApiUp] = useState<boolean | null>(null);
+
+  // digit keys arm nav links — 1/2/3 jump to the three destinations
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      const idx = Number(e.key) - 1;
+      if (idx >= 0 && idx < LINKS.length) router.push(LINKS[idx].href);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [router]);
 
   useEffect(() => {
     let alive = true;
@@ -52,20 +74,30 @@ export function ConsoleNav() {
         </Link>
 
         <nav className="hidden items-stretch gap-1 md:flex">
-          {LINKS.map((l) => {
+          {LINKS.map((l, i) => {
             const active =
               l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
             return (
               <Link
                 key={l.href}
                 href={l.href}
+                title={`${l.label} — press ${i + 1}`}
                 className={cn(
-                  "border border-transparent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.25em] transition-colors",
+                  "flex items-center gap-2 border border-transparent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.25em] transition-colors",
                   active
                     ? "border-flame/40 bg-wine/50 text-flame"
                     : "text-ash hover:border-flame/20 hover:text-bone",
                 )}
               >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "text-[8px] tabular-nums",
+                    active ? "text-flame/70" : "text-ash/40",
+                  )}
+                >
+                  {i + 1}
+                </span>
                 {l.label}
               </Link>
             );

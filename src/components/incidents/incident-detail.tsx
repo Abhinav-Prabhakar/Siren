@@ -638,87 +638,68 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             </Alert>
           )}
 
-          {/* hero — glyph, classification, chips, T+ mission clock */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-wine/50 via-coal to-ink">
+          {/* identity — one line: glyph, id, classification, state, elapsed */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             {ClassIcon && (
               <ClassIcon
                 aria-hidden
-                strokeWidth={1}
-                className="pointer-events-none absolute -right-5 -top-6 h-32 w-32 text-flame/[0.07]"
+                strokeWidth={2}
+                className="h-4 w-4 shrink-0 text-flame"
               />
             )}
-            <div className="relative flex flex-wrap items-center gap-4 p-4">
-              {ClassIcon && (
-                <ClassIcon
-                  aria-hidden
-                  strokeWidth={1.5}
-                  className="h-11 w-11 shrink-0 text-flame"
-                />
+            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
+              {inc.id}
+            </span>
+            <h3 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-bone">
+              {inc.classification || "Unclassified"}
+            </h3>
+            <StatusChip status={inc.status} />
+            <PriorityMark priority={inc.priority} />
+            <span
+              className={cn(
+                "ml-auto font-mono text-xs font-semibold tabular-nums tracking-[0.08em]",
+                inc.status === "active" ? "text-flame" : "text-bone/60",
               )}
-              <div className="min-w-0 flex-1">
-                <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-                  {inc.id}
-                </div>
-                <h3 className="mt-0.5 font-display text-xl font-black uppercase tracking-[0.08em] text-bone">
-                  {inc.classification || "Unclassified"}
-                </h3>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <StatusChip status={inc.status} />
-                  <PriorityMark priority={inc.priority} />
-                </div>
-              </div>
-              {/* elapsed mission clock — the record's heartbeat */}
-              <div className="ml-auto shrink-0 text-right">
-                <div
-                  className={cn(
-                    "font-display text-[26px] font-black tabular-nums leading-none tracking-[0.04em]",
-                    inc.status === "active"
-                      ? "text-glow text-flame"
-                      : "text-bone/80",
-                  )}
-                >
-                  {fmtElapsed(inc.reported_at)}
-                </div>
-                <div className="mt-1.5 font-mono text-[8px] uppercase tracking-[0.28em] text-ash">
-                  elapsed
-                </div>
-              </div>
-            </div>
-            {/* readout line — icon fields, no cells */}
-            <div className="relative flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-flame/15 px-4 py-2.5 font-mono text-[10px] tracking-[0.12em] text-bone/70">
+              title="elapsed since report"
+            >
+              {fmtElapsed(inc.reported_at)}
+            </span>
+          </div>
+
+          {/* readout line — icon fields, no cells */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-flame/10 pt-3 font-mono text-[10px] tracking-[0.12em] text-bone/70">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <MapPin aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+              <span className="truncate">{inc.address || "—"}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Clock aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+              {fmtClock(inc.reported_at)}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Flag aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+              {inc.resolved_at ? fmtClock(inc.resolved_at) : "open"}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Navigation
+                aria-hidden
+                className="h-3 w-3 shrink-0 text-flame/70"
+              />
+              {inc.lat != null && inc.lng != null
+                ? `${inc.lat.toFixed(4)} / ${inc.lng.toFixed(4)}`
+                : "—"}
+            </span>
+            {inc.notes ? (
               <span className="flex min-w-0 items-center gap-1.5">
-                <MapPin aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
-                <span className="truncate">{inc.address || "—"}</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Clock aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
-                {fmtClock(inc.reported_at)}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Flag aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
-                {inc.resolved_at ? fmtClock(inc.resolved_at) : "open"}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Navigation
+                <NotebookPen
                   aria-hidden
                   className="h-3 w-3 shrink-0 text-flame/70"
                 />
-                {inc.lat != null && inc.lng != null
-                  ? `${inc.lat.toFixed(4)} / ${inc.lng.toFixed(4)}`
-                  : "—"}
-              </span>
-              {inc.notes ? (
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <NotebookPen
-                    aria-hidden
-                    className="h-3 w-3 shrink-0 text-flame/70"
-                  />
-                  <span className="truncate normal-case tracking-normal text-bone/60">
-                    {inc.notes}
-                  </span>
+                <span className="truncate normal-case tracking-normal text-bone/60">
+                  {inc.notes}
                 </span>
-              ) : null}
-            </div>
+              </span>
+            ) : null}
           </div>
 
           {/* scene picture — AO plot + WX console in one instrument */}

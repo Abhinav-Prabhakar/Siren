@@ -111,12 +111,10 @@ export function ResourceSidebar({
         })}
       </div>
 
-      {/* active manifest — scrolls inside the rail */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {active === "vehicles" && <VehiclesList feed={vehicles} />}
-        {active === "equipment" && <EquipmentList feed={equipment} />}
-        {active === "people" && <PersonnelList feed={personnel} />}
-      </div>
+      {/* active manifest — list scrolls inside itself, inspector dock pinned below */}
+      {active === "vehicles" && <VehiclesList feed={vehicles} />}
+      {active === "equipment" && <EquipmentList feed={equipment} />}
+      {active === "people" && <PersonnelList feed={personnel} />}
     </div>
   );
 }

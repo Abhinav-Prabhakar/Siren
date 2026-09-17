@@ -7,12 +7,13 @@ import {
   Fuel,
   LifeBuoy,
   Radio,
-  Siren,
   Truck,
   type LucideIcon,
 } from "lucide-react";
 import { Led, Skeleton } from "@/components/ui";
 import {
+  fmtAgo,
+  fmtClock,
   statusTone,
   type Vehicle,
   type VehicleStatus,
@@ -20,17 +21,17 @@ import {
 } from "@/lib/api";
 import { VehicleDetailModal } from "@/components/vehicles/vehicle-detail-modal";
 import type { Feed } from "./sidebar";
-import { MiniBar, Row, TONE_TEXT } from "./rows";
-
-export const VEHICLE_STATUS_ORDER: Record<VehicleStatus, number> = {
-  on_scene: 0,
-  en_route: 1,
-  dispatched: 2,
-  available: 3,
-  returning: 4,
-  refuel: 5,
-  out_of_service: 6,
-};
+import {
+  DockCell,
+  fmtFree,
+  fmtPos,
+  GroupLabel,
+  IconChip,
+  InspectorDock,
+  Row,
+  RowMeta,
+  TONE_TEXT,
+} from "./rows";
 
 const STATUS_SHORT: Record<VehicleStatus, string> = {
   available: "avail",
@@ -53,70 +54,107 @@ const TYPE_ICON: Record<VehicleType, LucideIcon> = {
   special: Truck,
 };
 
+/** Manifest groups — committed work first, dead metal last. */
+const GROUPS: { label: string; statuses: VehicleStatus[] }[] = [
+  { label: "Committed", statuses: ["dispatched", "en_route", "on_scene"] },
+  { label: "Ready", statuses: ["available"] },
+  { label: "Return / refuel", statuses: ["returning", "refuel"] },
+  { label: "Out of service", statuses: ["out_of_service"] },
+];
+
+/** Where the unit sits, in one word. */
+function placeOf(v: Vehicle): string {
+  if (v.incident_id !== null) return v.incident_id;
+  if (v.status === "available") return `${v.station_id} bay`;
+  if (v.status === "out_of_service") return "dark";
+  return "in transit";
+}
+
 function VehicleRow({
   vehicle: v,
   onSelect,
+  onHover,
 }: {
   vehicle: Vehicle;
   onSelect: (id: string) => void;
+  onHover: (v: Vehicle | null) => void;
 }) {
   const tone = statusTone(v.status);
-  const dead = v.status === "out_of_service";
   const Icon = TYPE_ICON[v.type];
   return (
-    <Row onClick={() => onSelect(v.id)} dimmed={dead}>
-      <Icon className={`h-5 w-5 shrink-0 ${TONE_TEXT[tone]}`} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-display text-[13px] font-bold uppercase tracking-[0.1em] text-bone">
-            {v.callsign}
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            {v.incident_id !== null && (
-              <Siren className="h-3 w-3 text-flame" />
-            )}
-            <span
-              className={`font-mono text-[8px] uppercase tracking-[0.2em] ${TONE_TEXT[tone]}`}
-            >
-              {STATUS_SHORT[v.status]}
-            </span>
-          </span>
-        </div>
-        <div className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-[0.18em] text-ash">
-          {v.name}
-          {" · "}
-          {v.incident_id ?? `${v.station_id} bay`}
-        </div>
-        <div className="mt-1.5 flex items-center gap-2">
-          <Fuel className="h-3 w-3 shrink-0 text-ash/60" />
-          <MiniBar value={v.fuel_pct} />
-          {v.speed_kmh > 5 && (
-            <span className="shrink-0 font-mono text-[9px] tabular-nums text-blaze">
-              {Math.round(v.speed_kmh)} km/h
-            </span>
-          )}
-        </div>
-      </div>
+    <Row
+      onClick={() => onSelect(v.id)}
+      onHover={(h) => onHover(h ? v : null)}
+      dimmed={v.status === "out_of_service"}
+    >
+      <IconChip tone={tone}>
+        <Icon className="h-4 w-4" />
+      </IconChip>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-display text-[13px] font-bold uppercase tracking-[0.1em] text-bone">
+          {v.callsign}
+        </span>
+        <span className="block truncate font-mono text-[9px] uppercase tracking-[0.15em] text-ash">
+          {v.type} · {placeOf(v)}
+        </span>
+      </span>
+      <RowMeta
+        top={STATUS_SHORT[v.status]}
+        topClassName={TONE_TEXT[tone]}
+        bottom={v.free_at !== null ? `free ${fmtFree(v.free_at)}` : ""}
+      />
     </Row>
+  );
+}
+
+function VehicleInspector({ v }: { v: Vehicle | null }) {
+  const Icon = v === null ? Truck : TYPE_ICON[v.type];
+  return (
+    <InspectorDock
+      title={v === null ? null : `${v.callsign} — ${v.name}`}
+      icon={<Icon className="h-3.5 w-3.5 text-flame" />}
+    >
+      {v !== null && (
+        <>
+          <DockCell label="Task">
+            {STATUS_SHORT[v.status]}
+            {v.incident_id !== null && ` · ${v.incident_id}`}
+          </DockCell>
+          <DockCell label="Next free">
+            {v.free_at !== null ? `${fmtFree(v.free_at)} · ${fmtClock(v.free_at)}` : "—"}
+          </DockCell>
+          <DockCell label="Position">{fmtPos(v.lat, v.lng)}</DockCell>
+          <DockCell label="Speed">
+            {v.speed_kmh > 0 ? `${Math.round(v.speed_kmh)} km/h` : "parked"}
+          </DockCell>
+          <DockCell label="Fuel / water">
+            {Math.round(v.fuel_pct)}% · {Math.round(v.water_pct)}%
+          </DockCell>
+          <DockCell label="Battery">
+            {v.battery_v.toFixed(1)}v · upd {fmtAgo(v.updated_at)}
+          </DockCell>
+        </>
+      )}
+    </InspectorDock>
   );
 }
 
 export function VehiclesList({ feed }: { feed: Feed<Vehicle> }) {
   const { data, error, loading } = feed;
   const [selected, setSelected] = useState<string | null>(null);
+  const [inspected, setInspected] = useState<Vehicle | null>(null);
 
+  let body;
   if (data === null && loading) {
-    return (
+    body = (
       <div className="space-y-2 p-4">
         {Array.from({ length: 6 }, (_, i) => (
           <Skeleton key={i} className="h-12 w-full" />
         ))}
       </div>
     );
-  }
-
-  if (data === null) {
-    return (
+  } else if (data === null) {
+    body = (
       <div className="flex items-center gap-3 px-4 py-6">
         <Led tone="off" size="sm" />
         <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
@@ -124,22 +162,35 @@ export function VehiclesList({ feed }: { feed: Feed<Vehicle> }) {
         </span>
       </div>
     );
+  } else {
+    body = GROUPS.map((g) => {
+      const inGroup = data
+        .filter((v) => g.statuses.includes(v.status))
+        .sort((a, b) => a.callsign.localeCompare(b.callsign));
+      if (inGroup.length === 0) return null;
+      return (
+        <div key={g.label}>
+          <GroupLabel label={g.label} count={inGroup.length} />
+          {inGroup.map((v) => (
+            <VehicleRow
+              key={v.id}
+              vehicle={v}
+              onSelect={setSelected}
+              onHover={setInspected}
+            />
+          ))}
+        </div>
+      );
+    });
   }
 
-  const sorted = [...data].sort(
-    (a, b) =>
-      VEHICLE_STATUS_ORDER[a.status] - VEHICLE_STATUS_ORDER[b.status] ||
-      a.callsign.localeCompare(b.callsign),
-  );
-
   return (
-    <>
-      {sorted.map((v) => (
-        <VehicleRow key={v.id} vehicle={v} onSelect={setSelected} />
-      ))}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">{body}</div>
+      <VehicleInspector v={inspected} />
       {selected && (
         <VehicleDetailModal id={selected} onClose={() => setSelected(null)} />
       )}
-    </>
+    </div>
   );
 }

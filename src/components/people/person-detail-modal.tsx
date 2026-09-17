@@ -1,12 +1,18 @@
 "use client";
 
+import {
+  Building2,
+  Crosshair,
+  Heart,
+  MapPin,
+  Truck,
+  type LucideIcon,
+} from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
-import { Timeline } from "@/components/ui/timeline";
 import {
   api,
   fmtAgo,
@@ -25,59 +31,141 @@ interface PersonData {
   scba: TelemetryPoint[];
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** icon + trailing text for the assignment line. */
+function IconField({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
   return (
-    <div className="min-w-0 border border-flame/10 bg-ink/50 px-3 py-2">
-      <div className="font-mono text-[8px] uppercase tracking-[0.3em] text-ash">
-        {label}
+    <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-bone/75">
+      <Icon
+        aria-hidden
+        strokeWidth={2}
+        className="h-3.5 w-3.5 shrink-0 text-flame/70"
+      />
+      <span className="truncate">{text}</span>
+    </span>
+  );
+}
+
+/** Air cylinder — the fill drains bottom-up as SCBA % drops. */
+function ScbaCylinder({ pct, className }: { pct: number; className?: string }) {
+  const v = Math.max(0, Math.min(100, pct));
+  const low = v < 25;
+  const innerH = 38;
+  const fill = (innerH * v) / 100;
+  return (
+    <svg viewBox="0 0 20 48" className={cn("h-12 w-5", className)} aria-hidden>
+      <rect x="7" y="1" width="6" height="4" className="fill-ash/40" />
+      <rect
+        x="4"
+        y="6"
+        width="12"
+        height="40"
+        fill="none"
+        strokeWidth="1.2"
+        className={low ? "stroke-flame" : "stroke-ash/50"}
+      />
+      <rect
+        x="5.5"
+        y={7 + (innerH - fill)}
+        width="9"
+        height={Math.max(fill - 1, 0)}
+        className={low ? "fill-flame" : "fill-blaze/80"}
+      />
+    </svg>
+  );
+}
+
+/** Elapsed-time bar for the watch window — ◆ is "now" (last telemetry). */
+function ShiftBar({
+  start,
+  end,
+  now,
+}: {
+  start: string;
+  end: string;
+  now: number;
+}) {
+  const s = Date.parse(start);
+  const e = Date.parse(end);
+  const frac = Math.max(
+    0,
+    Math.min(1, (now - s) / Math.max(e - s, 1)),
+  );
+  const overdue = now > e;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between font-mono text-[8px] uppercase tracking-[0.25em]">
+        <span className="text-ash">watch {fmtClock(start)}</span>
+        <span className={overdue ? "text-flame" : "text-ash"}>
+          {overdue ? "relief due //" : `relief ${fmtClock(end)}`}
+        </span>
       </div>
-      <div className="mt-0.5 truncate font-mono text-[11px] uppercase tracking-[0.12em] text-bone/85">
-        {children}
+      <div className="relative mt-2 h-1.5 bg-smoke">
+        <div
+          className={cn("h-full", overdue ? "bg-flame" : "bg-blaze/80")}
+          style={{ width: `${frac * 100}%` }}
+        />
+        <span
+          aria-hidden
+          className="absolute -top-[3px] h-3 w-[3px] rotate-45 bg-bone"
+          style={{ left: `calc(${frac * 100}% - 1.5px)` }}
+        />
       </div>
     </div>
   );
 }
 
-function VitalTrace({
+/** One vital — glyph + big readout + flat trace. */
+function Vital({
+  glyph,
   label,
+  value,
   unit,
-  points,
-  current,
   hot,
+  points,
 }: {
+  glyph: React.ReactNode;
   label: string;
+  value: number;
   unit: string;
-  points: TelemetryPoint[];
-  current: number;
   hot: boolean;
+  points: TelemetryPoint[];
 }) {
   const data = points.map((pt) => pt.value);
   return (
-    <div className="border border-flame/10 bg-ink/50 px-3 py-2.5">
-      <div className="flex items-baseline justify-between font-mono text-[8px] uppercase tracking-[0.3em] text-ash">
-        <span>{label}</span>
-        <span
-          className={cn(
-            "font-display text-base font-bold tabular-nums tracking-normal",
-            hot ? "text-flame text-glow animate-pulse" : "text-bone",
-          )}
-        >
-          {Math.round(current)}
-          <span className="ml-0.5 text-[8px] font-normal text-ash">{unit}</span>
-        </span>
+    <div>
+      <div className="flex items-center gap-3">
+        {glyph}
+        <div className="flex items-baseline gap-2">
+          <span
+            className={cn(
+              "font-display text-2xl font-black tabular-nums leading-none",
+              hot ? "text-flame text-glow" : "text-bone",
+            )}
+          >
+            {Math.round(value)}
+          </span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
+            {unit} {"//"} {label}
+          </span>
+        </div>
       </div>
       {data.length >= 2 ? (
-        <Sparkline data={data} width={210} height={34} className="mt-1 w-full" />
+        <Sparkline
+          data={data}
+          width={240}
+          height={30}
+          className="mt-2 w-full"
+        />
       ) : (
         <div className="mt-2 font-mono text-[9px] uppercase tracking-[0.25em] text-ash/60">
-          No telemetry on record
+          no telemetry on record
         </div>
       )}
     </div>
   );
 }
 
-/** Live personnel dossier — vitals traces, assignment, shift timeline. */
+/** Live personnel dossier — vitals monitor, assignment, shift window. */
 export function PersonDetailModal({
   id,
   onClose,
@@ -104,28 +192,23 @@ export function PersonDetailModal({
       onClose={onClose}
       led={flag === "critical" ? "flame" : lamp.tone}
       title={p ? `${p.name} // ${p.id}` : `Personnel // ${id}`}
-      footer={
-        <Button variant="outline" size="sm" onClick={onClose}>
-          Dismiss
-        </Button>
-      }
       className="max-w-xl"
     >
       {loading && !data ? (
         <div className="space-y-3">
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-6 w-2/3" />
           <div className="grid grid-cols-2 gap-3">
-            <Skeleton className="h-14" />
-            <Skeleton className="h-14" />
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
           </div>
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
       ) : error && !data ? (
         <Alert tone="critical" title="Link lost">
-          Personnel record unreachable — backend down at localhost:8000 ({error}).
+          Personnel record unreachable — {error}.
         </Alert>
       ) : p ? (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {error && (
             <Alert tone="warning" title="Uplink degraded">
               {error} — showing last synced record; polling continues every 4s.
@@ -133,76 +216,73 @@ export function PersonDetailModal({
           )}
 
           {/* status line */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Badge tone={statusTone(p.status)}>{p.status.replace("_", " ")}</Badge>
-            <Badge tone="plain">{p.rank}</Badge>
-            <Badge tone="plain">{ROLE_LABELS[p.role]}</Badge>
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge tone={statusTone(p.status)}>
+              {p.status.replace(/_/g, " ")}
+            </Badge>
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash">
+              {p.rank} {"//"} {ROLE_LABELS[p.role]}
+            </span>
             {flag === "critical" && <Badge tone="hot">Vitals alert</Badge>}
             {flag === "warning" && <Badge tone="warm">Vitals watch</Badge>}
-            <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+            <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.2em] text-ash/60">
               seen {fmtAgo(p.updated_at)}
             </span>
           </div>
 
-          {/* vitals traces */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <VitalTrace
-              label="Heart rate"
-              unit="BPM"
-              points={data.hr}
-              current={p.heart_rate}
+          {/* vitals monitor — the heart literally beats at bpm */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Vital
+              glyph={
+                <Heart
+                  aria-hidden
+                  strokeWidth={2}
+                  fill="currentColor"
+                  className={cn(
+                    "animate-heartbeat h-6 w-6",
+                    p.heart_rate > 160 ? "text-flame" : "text-flame/80",
+                  )}
+                  style={{
+                    animationDuration: `${60 / Math.max(p.heart_rate, 40)}s`,
+                  }}
+                />
+              }
+              label="heart rate"
+              value={p.heart_rate}
+              unit="bpm"
               hot={p.heart_rate > 160}
+              points={data.hr}
             />
-            <VitalTrace
-              label="SCBA supply"
+            <Vital
+              glyph={<ScbaCylinder pct={p.scba_pct} />}
+              label="scba air"
+              value={p.scba_pct}
               unit="%"
-              points={data.scba}
-              current={p.scba_pct}
               hot={p.scba_pct < 25}
+              points={data.scba}
             />
           </div>
 
-          {/* assignment + position */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Assigned unit">{p.vehicle_name ?? "—"}</Field>
-            <Field label="Incident">{p.incident_address ?? "—"}</Field>
-            <Field label="Position">
-              {p.lat.toFixed(4)}, {p.lng.toFixed(4)}
-            </Field>
-            <Field label="Station">{p.station_id}</Field>
+          {/* assignment */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <IconField icon={Truck} text={p.vehicle_name ?? "no unit"} />
+            <IconField
+              icon={Crosshair}
+              text={p.incident_address ?? "no incident"}
+            />
+            <IconField
+              icon={MapPin}
+              text={`${p.lat.toFixed(3)}, ${p.lng.toFixed(3)}`}
+            />
+            <IconField icon={Building2} text={p.station_id} />
           </div>
 
-          {/* shift timeline */}
-          <div>
-            <div className="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-              {"// Shift window"}
-            </div>
-            <Timeline
-              items={[
-                {
-                  time: fmtClock(p.shift_start),
-                  title: "Watch begins",
-                  detail: `Shift start — ${p.rank} ${p.name.split(" ").slice(-1)[0]}`,
-                  tone: "bone",
-                },
-                {
-                  time: fmtClock(p.updated_at),
-                  title: "Last telemetry",
-                  detail: `HR ${p.heart_rate} bpm · SCBA ${Math.round(p.scba_pct)}%`,
-                  tone: "flame",
-                },
-                {
-                  time: fmtClock(p.shift_end),
-                  title: "Relief due",
-                  detail:
-                    p.status === "off_duty"
-                      ? "Off watch — roster slot free"
-                      : "Shift end — crew rotation",
-                  tone: "ash",
-                },
-              ]}
-            />
-          </div>
+          {/* watch window — "now" is the freshest telemetry stamp */}
+          <ShiftBar
+            start={p.shift_start}
+            end={p.shift_end}
+            now={Date.parse(p.updated_at)}
+          />
         </div>
       ) : null}
     </Modal>

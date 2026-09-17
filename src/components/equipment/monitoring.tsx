@@ -278,7 +278,7 @@ export function HorizonCountdown({ item }: { item: Equipment }) {
   const p = MONITORING[item.category];
   const cd = countdownState(item);
   return (
-    <div className="flex items-center gap-4 border border-flame/20 bg-ink/60 px-3 py-2.5">
+    <div className="flex items-center gap-4">
       <div className="min-w-0 flex-1">
         <Meter
           label={
@@ -320,16 +320,6 @@ export function MonitoringReadout({ item }: { item: Equipment }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-flame">
-          {"// "}
-          {p.headline}
-        </div>
-        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ash/90">
-          {p.brief}
-        </p>
-      </div>
-
       <div className="grid items-center gap-5 sm:grid-cols-2">
         {powered ? (
           p.cellGauge === "gauge" ? (

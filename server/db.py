@@ -3,11 +3,20 @@
 stdlib sqlite3 only. DB lives at server/siren.db. Timestamps are ISO-8601 UTC
 strings with a trailing Z (parseable by Date.parse in the frontend).
 """
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "siren.db"
+DEFAULT_DB_PATH = Path(__file__).resolve().parent / "siren.db"
+# Kept for backwards compatibility; prefer db_path() which honors SIREN_DB.
+DB_PATH = DEFAULT_DB_PATH
+
+
+def db_path() -> Path:
+    """Active DB path — SIREN_DB env var overrides (used by the test suite)."""
+    override = os.environ.get("SIREN_DB")
+    return Path(override) if override else DEFAULT_DB_PATH
 
 
 def now_iso() -> str:
@@ -16,7 +25,7 @@ def now_iso() -> str:
 
 
 def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
@@ -108,7 +117,8 @@ CREATE TABLE IF NOT EXISTS incidents(
   temp_c REAL,
   humidity_pct REAL,
   precip TEXT,
-  notes TEXT
+  notes TEXT,
+  external_contacts TEXT
 );
 
 CREATE TABLE IF NOT EXISTS calls(
@@ -177,6 +187,11 @@ CREATE TABLE IF NOT EXISTS chat_messages(
   content TEXT,
   ts TEXT
 );
+
+CREATE TABLE IF NOT EXISTS settings(
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 """
 
 
@@ -184,6 +199,16 @@ def init_db() -> None:
     conn = get_conn()
     try:
         conn.executescript(SCHEMA)
+        # ---- migrations for DBs created before Phase 2 -------------------
+        try:
+            conn.execute(
+                "ALTER TABLE incidents ADD COLUMN external_contacts TEXT"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        conn.execute(
+            "INSERT OR IGNORE INTO settings(key, value) VALUES('night_mode', 'false')"
+        )
         conn.commit()
     finally:
         conn.close()

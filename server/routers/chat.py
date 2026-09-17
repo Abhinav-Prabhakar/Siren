@@ -1,14 +1,25 @@
 """POST /api/chat {message} -> {reply, ts}; GET /api/chat/history.
 
-Rule-based stub — no real LLM. Answers are computed from live DB state and
-both user + assistant messages are persisted to chat_messages.
+Real LLM via the OpenAI-compatible endpoint configured by env:
+  VOIDAI_API_KEY, VOIDAI_BASE_URL, VOIDAI_MODEL (default gpt-5-nano).
+
+The system prompt carries a compact live DB snapshot and the last ~20
+chat_messages are sent as context. Both user and assistant messages persist to
+chat_messages. Missing key / LLM failure -> HTTP 503 (never a fake reply).
 """
-from fastapi import APIRouter
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import env
 from db import get_conn, now_iso, rows_dicts
 
+env.load()
+
 router = APIRouter(prefix="/api", tags=["chat"])
+
+HISTORY_LIMIT = 20
 
 
 class ChatIn(BaseModel):
@@ -21,123 +32,121 @@ def _status_counts(conn, table: str) -> dict:
     )}
 
 
-def _summary(conn) -> str:
-    v = _status_counts(conn, "vehicles")
-    p = _status_counts(conn, "personnel")
-    active = conn.execute(
-        "SELECT COUNT(*) AS c FROM incidents WHERE status != 'resolved'"
-    ).fetchone()["c"]
-    pending = conn.execute(
-        "SELECT COUNT(*) AS c FROM dispatches WHERE status = 'pending'"
-    ).fetchone()["c"]
-    live = conn.execute(
-        "SELECT COUNT(*) AS c FROM calls WHERE live = 1"
-    ).fetchone()["c"]
-    avail = v.get("available", 0)
-    total_v = sum(v.values())
-    on_scene = v.get("on_scene", 0)
-    en_route = v.get("en_route", 0)
-    duty = p.get("on_duty", 0) + p.get("on_scene", 0) + p.get("en_route", 0)
-    return (
-        f"Station status: {avail}/{total_v} units available, {en_route} en route, "
-        f"{on_scene} on scene. {duty} personnel engaged, {active} active incident(s), "
-        f"{pending} dispatch(es) awaiting approval, {live} live call(s)."
-    )
+def _snapshot(conn) -> str:
+    """Compact live-state digest injected into the system prompt."""
+    vehicles = _status_counts(conn, "vehicles")
+    personnel = _status_counts(conn, "personnel")
+    on_duty = rows_dicts(conn.execute(
+        """SELECT name, role, status FROM personnel
+           WHERE status IN ('on_duty','dispatched','en_route','on_scene')
+           ORDER BY id"""
+    ))
+    incidents = rows_dicts(conn.execute(
+        """SELECT id, priority, classification, address, status FROM incidents
+           WHERE status != 'resolved' ORDER BY priority"""
+    ))
+    pending = rows_dicts(conn.execute(
+        """SELECT id, incident_id, proposed_by FROM dispatches
+           WHERE status = 'pending' ORDER BY created_at"""
+    ))
+    live_calls = rows_dicts(conn.execute(
+        "SELECT id, caller_name, incident_id FROM calls WHERE live = 1"
+    ))
+
+    def counts(d):
+        return ", ".join(f"{k}:{n}" for k, n in sorted(d.items()) if n) or "none"
+
+    lines = [
+        "LIVE SNAPSHOT:",
+        f"- Units by status: {counts(vehicles)}",
+        f"- Personnel by status: {counts(personnel)}",
+        f"- On-duty personnel: "
+        + ("; ".join(f"{p['name']} ({p['role']}, {p['status']})" for p in on_duty) or "none"),
+        "- Active incidents: "
+        + ("; ".join(f"{i['id']} [{i['priority']}/{i['status']}] "
+                     f"{i['classification']} @ {i['address']}" for i in incidents) or "none"),
+        f"- Pending dispatches: {len(pending)}"
+        + (" (" + "; ".join(f"{d['id']}->{d['incident_id']} by {d['proposed_by']}"
+                           for d in pending) + ")" if pending else ""),
+        f"- Live calls: {len(live_calls)}"
+        + (" (" + "; ".join(f"{c['id']} {c['caller_name']}->{c['incident_id'] or 'unassigned'}"
+                           for c in live_calls) + ")" if live_calls else ""),
+    ]
+    return "\n".join(lines)
 
 
-def _reply(conn, message: str) -> str:
-    msg = message.lower()
+SYSTEM_PROMPT = """You are SIREN-1, the dispatch copilot for Siren Central fire station \
+(SIREN emergency dispatch console). You answer the incident commander's \
+questions using the live operations snapshot below. Be terse, precise, and \
+operational — radio voice. Use exact unit callsigns, personnel names, incident \
+ids and statuses from the snapshot. If asked for something not in the data, \
+say so plainly instead of guessing. Never fabricate numbers."""
 
-    if any(w in msg for w in ("hello", "hi", "hey")):
-        return "SIREN-1 online. Ask for status, units, incidents, dispatches, calls, fuel, crew or equipment."
 
-    if "availab" in msg or "unit" in msg or "vehicle" in msg or "apparatus" in msg:
-        v = _status_counts(conn, "vehicles")
-        total = sum(v.values())
-        names = [r["callsign"] for r in conn.execute(
-            "SELECT callsign FROM vehicles WHERE status = 'available' ORDER BY id"
-        )]
-        breakdown = ", ".join(f"{k}:{n}" for k, n in v.items() if n)
-        listed = f" Available: {', '.join(names)}." if names else ""
-        return f"{v.get('available', 0)} of {total} units available.{listed} Breakdown — {breakdown}."
+def _llm_reply(conn, user_message: str, exclude_id: Optional[int] = None) -> str:
+    api_key = env.get("VOIDAI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM unavailable: VOIDAI_API_KEY is not configured (server/.env)",
+        )
+    base_url = env.get("VOIDAI_BASE_URL")
+    model = env.get("VOIDAI_MODEL", "gpt-5-nano")
 
-    if "incident" in msg or "fire" in msg or "emergency" in msg:
-        rows = rows_dicts(conn.execute(
-            "SELECT id, priority, classification, address, status FROM incidents "
-            "WHERE status != 'resolved' ORDER BY priority"
-        ))
-        if not rows:
-            return "No active incidents. Board is green."
-        parts = [f"{r['id']} [{r['priority']}/{r['status']}] {r['classification']} @ {r['address']}"
-                 for r in rows]
-        return f"{len(rows)} active incident(s): " + " | ".join(parts)
+    # exclude_id skips the just-persisted user message — it's appended
+    # explicitly below, and would otherwise appear twice in the context.
+    history = rows_dicts(conn.execute(
+        "SELECT id, role, content FROM chat_messages ORDER BY id DESC LIMIT ?",
+        (HISTORY_LIMIT + 1,),
+    ))
+    history = [h for h in history if h["id"] != exclude_id][:HISTORY_LIMIT]
+    history.reverse()  # chronological
 
-    if "dispatch" in msg or "pending" in msg or "approv" in msg:
-        rows = rows_dicts(conn.execute(
-            "SELECT id, incident_id, notes FROM dispatches WHERE status = 'pending' "
-            "ORDER BY created_at"
-        ))
-        if not rows:
-            return "No dispatches awaiting approval."
-        parts = [f"{r['id']} → {r['incident_id']} ({r['notes']})" for r in rows]
-        return f"{len(rows)} pending dispatch(es): " + " | ".join(parts)
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + _snapshot(conn)},
+        *[{"role": h["role"], "content": h["content"]} for h in history],
+        {"role": "user", "content": user_message},
+    ]
 
-    if "call" in msg or "phone" in msg or "vapi" in msg:
-        live = conn.execute(
-            "SELECT COUNT(*) AS c FROM calls WHERE live = 1"
-        ).fetchone()["c"]
-        total = conn.execute("SELECT COUNT(*) AS c FROM calls").fetchone()["c"]
-        live_rows = rows_dicts(conn.execute(
-            "SELECT id, caller_name, incident_id FROM calls WHERE live = 1"
-        ))
-        detail = " Live: " + ", ".join(
-            f"{r['id']} ({r['caller_name']} → {r['incident_id'] or 'unassigned'})"
-            for r in live_rows
-        ) if live_rows else ""
-        return f"{live} live call(s), {total} total on record.{detail}"
+    try:
+        from openai import OpenAI
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM unavailable: 'openai' package not installed",
+        )
 
-    if "fuel" in msg:
-        rows = rows_dicts(conn.execute(
-            "SELECT callsign, fuel_pct FROM vehicles ORDER BY fuel_pct ASC LIMIT 3"
-        ))
-        parts = ", ".join(f"{r['callsign']} {r['fuel_pct']:.0f}%" for r in rows)
-        return f"Lowest fuel: {parts}."
-
-    if "crew" in msg or "personnel" in msg or "staff" in msg or "people" in msg or "who" in msg:
-        p = _status_counts(conn, "personnel")
-        total = sum(p.values())
-        breakdown = ", ".join(f"{k}:{n}" for k, n in p.items() if n)
-        return f"{total} personnel on roster. Breakdown — {breakdown}."
-
-    if "equipment" in msg or "gear" in msg or "scba" in msg or "tool" in msg:
-        e = _status_counts(conn, "equipment")
-        total = sum(e.values())
-        breakdown = ", ".join(f"{k}:{n}" for k, n in e.items() if n)
-        return f"{total} equipment items tracked. Breakdown — {breakdown}."
-
-    if "battery" in msg:
-        rows = rows_dicts(conn.execute(
-            "SELECT id, name, battery_pct FROM equipment "
-            "WHERE battery_pct IS NOT NULL ORDER BY battery_pct ASC LIMIT 3"
-        ))
-        parts = ", ".join(f"{r['name']} {r['battery_pct']:.0f}%" for r in rows)
-        return f"Lowest equipment batteries: {parts}."
-
-    # default — station summary
-    return _summary(conn)
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=30.0)
+        resp = client.chat.completions.create(model=model, messages=messages)
+        reply = (resp.choices[0].message.content or "").strip()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503, detail=f"LLM request failed: {exc}"
+        )
+    if not reply:
+        raise HTTPException(
+            status_code=503, detail="LLM returned an empty reply"
+        )
+    return reply
 
 
 @router.post("/chat")
 def chat(body: ChatIn):
+    message = (body.message or "").strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="message must not be empty")
     conn = get_conn()
     try:
         user_ts = now_iso()
-        reply = _reply(conn, body.message or "")
-        reply_ts = now_iso()
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO chat_messages(role,content,ts) VALUES(?,?,?)",
-            ("user", body.message, user_ts),
+            ("user", message, user_ts),
         )
+        conn.commit()
+
+        reply = _llm_reply(conn, message, exclude_id=cur.lastrowid)
+        reply_ts = now_iso()
         conn.execute(
             "INSERT INTO chat_messages(role,content,ts) VALUES(?,?,?)",
             ("assistant", reply, reply_ts),

@@ -8,6 +8,7 @@ router = APIRouter(prefix="/api", tags=["events"])
 
 @router.get("/events")
 def list_events(limit: int = 50):
+    limit = max(1, min(limit, 500))
     conn = get_conn()
     try:
         rows = rows_dicts(conn.execute(

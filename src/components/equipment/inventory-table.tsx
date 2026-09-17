@@ -4,7 +4,7 @@ import type { KeyboardEvent } from "react";
 import { Badge, Meter } from "@/components/ui";
 import { fmtAgo, statusTone, type Equipment } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { fmtStatus } from "./shared";
+import { fmtStatus, LOW_CONDITION_AT } from "./shared";
 
 const HEADERS = [
   "ID",
@@ -71,7 +71,7 @@ function ItemRow({
         )}
       </td>
       <td className="px-3 py-1.5">
-        <CellMeter label="cond" value={item.condition_pct} lowAt={40} />
+        <CellMeter label="cond" value={item.condition_pct} lowAt={LOW_CONDITION_AT} />
       </td>
       <td className="px-3 py-1.5 text-right font-mono text-[10px] tracking-wider text-ash">
         {fmtAgo(item.last_check)}

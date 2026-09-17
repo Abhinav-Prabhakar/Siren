@@ -11,6 +11,7 @@ router = APIRouter(prefix="/api", tags=["telemetry"])
 @router.get("/telemetry/{entity_type}/{entity_id}")
 def get_telemetry(entity_type: str, entity_id: str,
                   metric: Optional[str] = None, limit: int = 60):
+    limit = max(1, min(limit, 500))
     conn = get_conn()
     try:
         if metric:

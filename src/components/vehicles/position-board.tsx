@@ -44,6 +44,7 @@ export function PositionBoard({
   const maxLng = lngs.length ? Math.max(...lngs) : 0;
   const latSpan = Math.max(maxLat - minLat, 0.004);
   const lngSpan = Math.max(maxLng - minLng, 0.004);
+  const station = vehicles[0]?.station_id ?? "—";
 
   const px = (v: Vehicle) =>
     PAD + ((v.lng - minLng) / lngSpan) * (100 - PAD * 2);
@@ -92,7 +93,7 @@ export function PositionBoard({
           lng {maxLng.toFixed(4)}
         </span>
         <span className="absolute bottom-1.5 right-2 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
-          STA-01 // sector
+          {station} {"//"} sector
         </span>
 
         {vehicles.length === 0 && (

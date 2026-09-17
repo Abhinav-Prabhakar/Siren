@@ -23,7 +23,16 @@ const unitLampClasses: Record<BadgeTone, string> = {
   plain: "bg-flame/60",
 };
 
-export function UnitCard({ unit, className }: { unit: Unit; className?: string }) {
+export function UnitCard({
+  unit,
+  onAssign,
+  className,
+}: {
+  unit: Unit;
+  /** Wires the Assign button. Disabled when absent. */
+  onAssign?: () => void;
+  className?: string;
+}) {
   return (
     <div
       className={cn(
@@ -80,7 +89,13 @@ export function UnitCard({ unit, className }: { unit: Unit; className?: string }
           <span className="mr-auto font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
             {"// Unit record"}
           </span>
-          <Button variant="ghost" size="sm" led="on">
+          <Button
+            variant="ghost"
+            size="sm"
+            led="on"
+            disabled={onAssign === undefined}
+            onClick={onAssign}
+          >
             Assign
           </Button>
         </div>

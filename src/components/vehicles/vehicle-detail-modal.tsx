@@ -250,16 +250,9 @@ export function VehicleDetailModal({
       led={v && statusTone(v.status) === "hot" ? "flame" : "bone"}
       className="max-w-3xl"
       footer={
-        <>
-          {error && v && (
-            <span className="mr-auto font-mono text-[9px] uppercase tracking-[0.25em] text-blaze">
-              link unstable — showing last sync
-            </span>
-          )}
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Close
-          </Button>
-        </>
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Close
+        </Button>
       }
     >
       {loading && !v ? (
@@ -275,7 +268,14 @@ export function VehicleDetailModal({
           every 4s.
         </Alert>
       ) : v ? (
-        <DetailBody v={v} fuelSeries={fuelSeries} speedSeries={speedSeries} />
+        <div className="space-y-4">
+          {error && (
+            <Alert tone="warning" title="Uplink degraded">
+              {error} — showing last synced record; polling continues every 4s.
+            </Alert>
+          )}
+          <DetailBody v={v} fuelSeries={fuelSeries} speedSeries={speedSeries} />
+        </div>
       ) : null}
     </Modal>
   );

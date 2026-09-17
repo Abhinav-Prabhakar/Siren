@@ -128,24 +128,32 @@ def _seed(conn) -> None:
     )
 
     # ---- incidents (2 active + 1 resolved) --------------------------------
+    inc1_contacts = json.dumps([
+        {"service": "utility", "ts": _ago(minutes=30)},
+        {"service": "police", "ts": _ago(minutes=25)},
+    ])
     conn.executemany(
         """INSERT INTO incidents(id,classification,priority,status,address,lat,lng,
-           reported_at,resolved_at,wind,wind_dir,temp_c,humidity_pct,precip,notes)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           reported_at,resolved_at,wind,wind_dir,temp_c,humidity_pct,precip,notes,
+           external_contacts)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         [
             ("INC-001", "Structure Fire — Residential", "P1", "active",
              "812 Ashgrove Lane", i1[0], i1[1], _ago(minutes=42), None,
              "18 km/h", "NW", 9.5, 42.0, "none",
-             "Two-storey detached. Flames venting second floor, exposure risk on B side. All occupants reported out."),
+             "Two-storey detached. Flames venting second floor, exposure risk on B side. All occupants reported out.",
+             inc1_contacts),
             ("INC-002", "Motor Vehicle Accident — Entrapment", "P2", "active",
              "Harbor Blvd & 9th St", i2[0], i2[1], _ago(minutes=19), None,
              "14 km/h", "N", 10.2, 48.0, "none",
-             "Two-vehicle collision, one occupant trapped. Hydraulic rescue in progress."),
+             "Two-vehicle collision, one occupant trapped. Hydraulic rescue in progress.",
+             json.dumps([{"service": "ems", "ts": _ago(minutes=15)}])),
             ("INC-003", "Kitchen Fire — Small", "P3", "resolved",
              "44 Foundry Row, Unit 3", BASE_LAT + 0.006, BASE_LNG - 0.004,
              _ago(hours=3), _ago(hours=1, minutes=30),
              "10 km/h", "W", 11.0, 51.0, "none",
-             "Stove fire extinguished prior to arrival. Ventilation only. No injuries."),
+             "Stove fire extinguished prior to arrival. Ventilation only. No injuries.",
+             None),
         ],
     )
 

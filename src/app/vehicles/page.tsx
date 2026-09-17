@@ -146,8 +146,18 @@ export default function VehiclesPage() {
         />
 
         {error && (
-          <Alert tone="critical" title="Backend unreachable at localhost:8000">
-            {error} — fleet data may be stale. Polling retries every 4s.
+          <Alert
+            tone={data ? "warning" : "critical"}
+            title={
+              data
+                ? "Uplink degraded"
+                : "Backend unreachable at localhost:8000"
+            }
+          >
+            {error} —{" "}
+            {data
+              ? "showing last synced fleet data. Polling retries every 4s."
+              : "fleet data unavailable. Check the FastAPI server, then resync."}
           </Alert>
         )}
 

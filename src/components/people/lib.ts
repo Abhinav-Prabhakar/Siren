@@ -86,9 +86,11 @@ export function vitalsAlert(p: Personnel): VitalsFlag {
   return null;
 }
 
-/** "free at"-style readout from the shift window. */
-export function freeAtLabel(p: Personnel): string {
-  if (p.status === "off_duty") return "Free now";
-  if (p.status === "resting") return `Rehab › ${fmtClock(p.shift_end)}`;
-  return `Free › ${fmtClock(p.shift_end)}`;
+/**
+ * Shift-window readout — strictly real fields: personnel carry no
+ * free_at, so we show the rostered shift end (or off-watch state).
+ */
+export function shiftEndLabel(p: Personnel): string {
+  if (p.status === "off_duty") return "Off watch";
+  return `Shift end ${fmtClock(p.shift_end)}`;
 }

@@ -18,8 +18,11 @@ import {
   Panel,
   Skeleton,
   Stat,
+  Switch,
   WeatherStrip,
+  type BadgeTone,
 } from "@/components/ui";
+import { NewDispatchModal } from "@/components/console/new-dispatch-modal";
 import {
   API_URL,
   api,
@@ -29,7 +32,9 @@ import {
   statusTone,
   type Call,
   type Dispatch,
+  type DispatchStatus,
   type Incident,
+  type IncidentDetail,
   type IncidentPriority,
 } from "@/lib/api";
 import { usePolling } from "@/lib/use-polling";
@@ -55,6 +60,17 @@ const VEHICLE_STATUSES = [
 ] as const;
 
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+
+/** Dispatch lifecycle → badge tone (statusTone() doesn't cover these). */
+const DISPATCH_TONE: Record<DispatchStatus, BadgeTone> = {
+  pending: "warm",
+  approved: "hot",
+  rejected: "dead",
+  completed: "cold",
+};
+
+const DECIDED_SHOWN = 6;
+const EXTERNAL_SERVICES = ["ems", "police", "utility"] as const;
 
 /** `extracted` arrives as a JSON column — accept array or encoded string. */
 function asStringList(value: unknown): string[] {
@@ -105,12 +121,20 @@ export default function ControlRoomPage() {
   const overview = usePolling(() => api.overview(), POLL_MS);
   const incidents = usePolling(() => api.incidents("active"), POLL_MS);
   const calls = usePolling(() => api.calls(), POLL_MS);
-  const dispatches = usePolling(() => api.dispatches("pending"), POLL_MS);
+  const dispatches = usePolling(() => api.dispatches(), POLL_MS);
   const events = usePolling(() => api.events(40), POLL_MS);
+  const settings = usePolling(() => api.settings(), POLL_MS);
 
   const [dispatchFocus, setDispatchFocus] = useState<Dispatch | null>(null);
   const [incidentFocus, setIncidentFocus] = useState<Incident | null>(null);
+  const [incidentDetail, setIncidentDetail] = useState<IncidentDetail | null>(
+    null,
+  );
+  const [newDispatchOpen, setNewDispatchOpen] = useState(false);
   const [acting, setActing] = useState(false);
+  const [nightBusy, setNightBusy] = useState(false);
+  const [contactBusy, setContactBusy] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(
     null,
   );
@@ -121,12 +145,40 @@ export default function ControlRoomPage() {
     return () => clearTimeout(id);
   }, [notice]);
 
+  /* clear stale detail/contact state whenever the focused incident changes
+     (render-adjust pattern — keeps the effect below fetch-only) */
+  const [detailFor, setDetailFor] = useState<string | null>(null);
+  const focusId = incidentFocus?.id ?? null;
+  if (focusId !== detailFor) {
+    setDetailFor(focusId);
+    setIncidentDetail(null);
+    setContactError(null);
+  }
+
+  /* pull fresh incident detail (incl. external_contacts) when a card opens */
+  useEffect(() => {
+    if (!incidentFocus) return;
+    let cancelled = false;
+    api
+      .incident(incidentFocus.id)
+      .then((d) => {
+        if (!cancelled) setIncidentDetail(d);
+      })
+      .catch(() => {
+        /* detail fetch failed — modal falls back to the list-row incident */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [incidentFocus]);
+
   function refreshAll() {
     overview.refresh();
     incidents.refresh();
     calls.refresh();
     dispatches.refresh();
     events.refresh();
+    settings.refresh();
   }
 
   async function decide(d: Dispatch, intent: "approve" | "reject") {
@@ -141,13 +193,60 @@ export default function ControlRoomPage() {
       });
       setDispatchFocus(null);
       refreshAll();
-    } catch {
+    } catch (e) {
       setNotice({
         error: true,
-        text: `${d.id} // decision failed — backend unreachable`,
+        text: `${d.id} // decision failed — ${
+          e instanceof Error ? e.message : "backend unreachable"
+        }`,
       });
     } finally {
       setActing(false);
+    }
+  }
+
+  async function toggleNight(enabled: boolean) {
+    if (nightBusy) return;
+    setNightBusy(true);
+    try {
+      await api.setNightMode(enabled);
+      setNotice({
+        error: false,
+        text: enabled
+          ? "night watch armed // agent proposals auto-approve while armed"
+          : "night watch off // operator approval restored",
+      });
+      refreshAll();
+    } catch (e) {
+      setNotice({
+        error: true,
+        text: `night watch switch failed — ${
+          e instanceof Error ? e.message : "backend unreachable"
+        }`,
+      });
+    } finally {
+      setNightBusy(false);
+    }
+  }
+
+  async function contactService(service: string) {
+    if (!incidentFocus || contactBusy) return;
+    setContactBusy(true);
+    setContactError(null);
+    try {
+      const updated = await api.contactService(incidentFocus.id, service);
+      setIncidentDetail((prev) => (prev ? { ...prev, ...updated } : prev));
+      setIncidentFocus((prev) =>
+        prev ? { ...prev, ...updated } : prev,
+      );
+      incidents.refresh();
+      events.refresh();
+    } catch (e) {
+      setContactError(
+        e instanceof Error ? e.message : "contact request failed",
+      );
+    } finally {
+      setContactBusy(false);
     }
   }
 
@@ -178,12 +277,29 @@ export default function ControlRoomPage() {
     (a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority],
   )[0];
 
-  const pendingDispatches = dispatches.data ?? [];
+  const allDispatches = dispatches.data ?? [];
+  const pendingDispatches = allDispatches.filter(
+    (d) => d.status === "pending",
+  );
+  const decidedDispatches = allDispatches
+    .filter((d) => d.status !== "pending")
+    .sort(
+      (a, b) =>
+        Date.parse(b.decided_at ?? b.created_at) -
+        Date.parse(a.decided_at ?? a.created_at),
+    )
+    .slice(0, DECIDED_SHOWN);
+
+  const nightMode = settings.data?.night_mode ?? false;
+
+  /** Fresh detail when it lands, list row otherwise. */
+  const incidentView: Incident | null = incidentDetail ?? incidentFocus;
 
   const callList = [...(calls.data ?? [])].sort(
     (a, b) =>
       Number(Boolean(b.live)) - Number(Boolean(a.live)) ||
-      Date.parse(b.started_at) - Date.parse(a.started_at),
+      (b.started_at ? Date.parse(b.started_at) : 0) -
+        (a.started_at ? Date.parse(a.started_at) : 0),
   );
 
   const feedLines = [...(events.data ?? [])].reverse().map((e) => ({
@@ -198,8 +314,17 @@ export default function ControlRoomPage() {
     incidents.error ??
     calls.error ??
     dispatches.error ??
-    events.error;
-  const backendDown = firstError !== null;
+    events.error ??
+    settings.error;
+  const hasData =
+    overview.data !== null ||
+    incidents.data !== null ||
+    calls.data !== null ||
+    dispatches.data !== null ||
+    events.data !== null;
+  /* error + nothing on screen → critical; error + stale data → warning */
+  const backendDown = firstError !== null && !hasData;
+  const staleData = firstError !== null && hasData;
 
   /** Vehicle ids the agent has proposed for a given incident. */
   function proposedUnits(incidentId: string): string[] | undefined {
@@ -230,6 +355,12 @@ export default function ControlRoomPage() {
             console self-heals when the API returns. Last error: {firstError}
           </Alert>
         )}
+        {staleData && (
+          <Alert tone="warning" title="Uplink degraded — showing last-known state">
+            One or more feeds failed the last refresh; figures below may be
+            stale until the API answers again. Last error: {firstError}
+          </Alert>
+        )}
 
         <PageHeader
           title="SIREN // Control room"
@@ -241,9 +372,30 @@ export default function ControlRoomPage() {
           status={
             backendDown ? (
               <Badge tone="dead">LINK DOWN</Badge>
+            ) : staleData ? (
+              <Badge tone="warm">LINK DEGRADED</Badge>
             ) : (
               <Badge tone="hot">SYSTEM ONLINE</Badge>
             )
+          }
+          actions={
+            <div className="flex items-center gap-4">
+              {nightMode && <Badge tone="hot">AUTO-DISPATCH ARMED</Badge>}
+              <Switch
+                label="Night watch // auto-approve"
+                checked={nightMode}
+                disabled={settings.data === null || nightBusy}
+                onCheckedChange={(v) => void toggleNight(v)}
+              />
+              <Button
+                variant="solid"
+                size="sm"
+                led="on"
+                onClick={() => setNewDispatchOpen(true)}
+              >
+                New dispatch
+              </Button>
+            </div>
           }
         />
 
@@ -305,11 +457,19 @@ export default function ControlRoomPage() {
               <div className="w-full space-y-2">
                 <WeatherStrip
                   className="w-full"
-                  wind={topIncident.wind}
-                  windDir={topIncident.wind_dir}
-                  temp={`${Math.round(topIncident.temp_c)}°C`}
-                  humidity={`${Math.round(topIncident.humidity_pct)}%`}
-                  precip={topIncident.precip}
+                  wind={topIncident.wind || "—"}
+                  windDir={topIncident.wind_dir || undefined}
+                  temp={
+                    topIncident.temp_c != null
+                      ? `${Math.round(topIncident.temp_c)}°C`
+                      : "—"
+                  }
+                  humidity={
+                    topIncident.humidity_pct != null
+                      ? `${Math.round(topIncident.humidity_pct)}%`
+                      : "—"
+                  }
+                  precip={topIncident.precip || "—"}
                 />
                 <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
                   {topIncident.classification} — {topIncident.address}
@@ -386,7 +546,12 @@ export default function ControlRoomPage() {
                     call={{
                       caller: c.caller_name?.trim() || "Unknown caller",
                       number: c.caller_number || "—",
-                      duration: fmtDuration(c.duration_s),
+                      duration:
+                        c.duration_s != null
+                          ? fmtDuration(c.duration_s)
+                          : c.live
+                            ? "LIVE"
+                            : "—",
                       transcript:
                         c.transcript || c.summary || "Transcript pending…",
                       extracted: asStringList(c.extracted),
@@ -492,6 +657,40 @@ export default function ControlRoomPage() {
                   </div>
                 ))
               )}
+              {dispatches.data !== null && (
+                <>
+                  <Divider label="decided" className="pt-1" />
+                  {decidedDispatches.length === 0 ? (
+                    <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
+                      No decisions on record
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {decidedDispatches.map((d) => (
+                        <div
+                          key={d.id}
+                          className="flex items-center justify-between gap-3 border border-ash/10 bg-smoke/30 px-3 py-2"
+                        >
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <Badge tone={DISPATCH_TONE[d.status]}>
+                              {d.status}
+                            </Badge>
+                            <span className="truncate font-mono text-[10px] uppercase tracking-[0.18em] text-bone/70">
+                              {d.id} —{" "}
+                              {d.incident_classification ?? d.incident_id}
+                            </span>
+                          </div>
+                          <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+                            {d.decided_at
+                              ? `${fmtClock(d.decided_at)} · ${fmtAgo(d.decided_at)}`
+                              : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </Panel>
 
             <Panel
@@ -579,7 +778,8 @@ export default function ControlRoomPage() {
             {ov ? `${ov.station.code} // ${ov.station.name}` : "station —"}
           </span>
           <span>
-            poll {POLL_MS / 1000}s {"//"} human-approved dispatch
+            poll {POLL_MS / 1000}s {"//"}{" "}
+            {nightMode ? "night watch // auto-approve" : "human-approved dispatch"}
           </span>
         </div>
       </footer>
@@ -680,63 +880,80 @@ export default function ControlRoomPage() {
         led="flame"
         footer={
           incidentFocus ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIncidentFocus(null)}
-            >
-              Close
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                href={api.reportUrl(incidentFocus.id)}
+              >
+                Report PDF
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIncidentFocus(null)}
+              >
+                Close
+              </Button>
+            </>
           ) : undefined
         }
       >
-        {incidentFocus && (
+        {incidentView && (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={statusTone(incidentFocus.priority)}>
-                {incidentFocus.priority}
+              <Badge tone={statusTone(incidentView.priority)}>
+                {incidentView.priority}
               </Badge>
-              <Badge tone={statusTone(incidentFocus.status)}>
-                {incidentFocus.status}
+              <Badge tone={statusTone(incidentView.status)}>
+                {incidentView.status}
               </Badge>
             </div>
             <div>
               <div className="font-display text-sm font-bold uppercase tracking-[0.12em] text-bone">
-                {incidentFocus.classification}
+                {incidentView.classification || "Unclassified"}
               </div>
               <div className="font-mono text-[11px] tracking-wider text-bone/70">
-                {incidentFocus.address}
+                {incidentView.address || "—"}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 font-mono text-[10px] uppercase tracking-[0.2em]">
               <div>
                 <div className="text-ash">Reported</div>
                 <div className="mt-0.5 text-bone/80">
-                  {fmtAgo(incidentFocus.reported_at)}
+                  {fmtAgo(incidentView.reported_at)}
                 </div>
               </div>
               <div>
                 <div className="text-ash">Reports</div>
                 <div className="mt-0.5 text-bone/80">
-                  {incidentFocus.call_count ?? 0} calls {"//"}{" "}
-                  {incidentFocus.unit_count ?? 0} units
+                  {incidentView.call_count ?? 0} calls {"//"}{" "}
+                  {incidentView.unit_count ?? 0} units
                 </div>
               </div>
             </div>
             <WeatherStrip
-              wind={incidentFocus.wind}
-              windDir={incidentFocus.wind_dir}
-              temp={`${Math.round(incidentFocus.temp_c)}°C`}
-              humidity={`${Math.round(incidentFocus.humidity_pct)}%`}
-              precip={incidentFocus.precip}
+              wind={incidentView.wind || "—"}
+              windDir={incidentView.wind_dir || undefined}
+              temp={
+                incidentView.temp_c != null
+                  ? `${Math.round(incidentView.temp_c)}°C`
+                  : "—"
+              }
+              humidity={
+                incidentView.humidity_pct != null
+                  ? `${Math.round(incidentView.humidity_pct)}%`
+                  : "—"
+              }
+              precip={incidentView.precip || "—"}
             />
-            {incidentFocus.notes && (
+            {incidentView.notes && (
               <p className="border-l-2 border-flame/40 pl-3 text-xs leading-relaxed text-bone/75">
-                {incidentFocus.notes}
+                {incidentView.notes}
               </p>
             )}
             {pendingDispatches
-              .filter((d) => d.incident_id === incidentFocus.id)
+              .filter((d) => d.incident_id === incidentView.id)
               .map((d) => (
                 <button
                   key={d.id}
@@ -753,9 +970,64 @@ export default function ControlRoomPage() {
                   <span>review ›</span>
                 </button>
               ))}
+            <Divider label="external agencies" />
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
+                Alert service:
+              </span>
+              {EXTERNAL_SERVICES.map((s) => (
+                <Button
+                  key={s}
+                  variant="outline"
+                  size="sm"
+                  disabled={contactBusy}
+                  onClick={() => void contactService(s)}
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
+            {contactError && (
+              <Alert tone="critical" title="External contact failed">
+                {contactError}
+              </Alert>
+            )}
+            {(incidentView.external_contacts ?? []).length > 0 ? (
+              <div className="space-y-1.5">
+                {(incidentView.external_contacts ?? []).map((c, i) => (
+                  <div
+                    key={`${c.service}-${c.ts}-${i}`}
+                    className="flex items-center justify-between gap-3 border border-ash/10 bg-smoke/30 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em]"
+                  >
+                    <span className="text-bone/80">{c.service} notified</span>
+                    <span className="text-ash">
+                      {fmtClock(c.ts)} · {fmtAgo(c.ts)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
+                No external services contacted on this incident
+              </div>
+            )}
           </div>
         )}
       </Modal>
+
+      {/* operator manual dispatch */}
+      <NewDispatchModal
+        open={newDispatchOpen}
+        onClose={() => setNewDispatchOpen(false)}
+        onCreated={(d) => {
+          setNewDispatchOpen(false);
+          setNotice({
+            error: false,
+            text: `${d.id} deployed // operator dispatch auto-approved — units committed`,
+          });
+          refreshAll();
+        }}
+      />
     </div>
   );
 }

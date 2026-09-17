@@ -8,6 +8,7 @@ picked up without touching this file.
 """
 import asyncio
 import importlib
+import os
 import pkgutil
 import sys
 from contextlib import asynccontextmanager
@@ -28,15 +29,17 @@ from simulator import telemetry_loop
 async def lifespan(app: FastAPI):
     init_db()
     seed_if_empty()
-    task = asyncio.create_task(telemetry_loop())
+    # SIREN_DISABLE_SIM=1 keeps the world frozen — used by the test suite.
+    task = None if os.environ.get("SIREN_DISABLE_SIM") else asyncio.create_task(telemetry_loop())
     try:
         yield
     finally:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="SIREN API", lifespan=lifespan)

@@ -27,11 +27,14 @@ const priorityTone: Record<Incident["priority"], BadgeTone> = {
 export function IncidentCard({
   incident,
   actions,
+  onApprove,
   className,
 }: {
   incident: Incident;
   /** Slot for extra actions; an Approve button is rendered by default. */
   actions?: ReactNode;
+  /** Wires the Approve dispatch button. Disabled when absent. */
+  onApprove?: () => void;
   className?: string;
 }) {
   return (
@@ -79,7 +82,13 @@ export function IncidentCard({
         </div>
         <div className="flex items-center justify-end gap-3 border-t border-flame/15 px-4 py-2.5">
           {actions}
-          <Button variant="solid" size="sm" led="pulse">
+          <Button
+            variant="solid"
+            size="sm"
+            led="pulse"
+            disabled={onApprove === undefined}
+            onClick={onApprove}
+          >
             Approve dispatch
           </Button>
         </div>

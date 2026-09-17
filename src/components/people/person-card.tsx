@@ -12,8 +12,8 @@ import {
 import { cn } from "@/lib/utils";
 import {
   dutyLed,
-  freeAtLabel,
   ROLE_LABELS,
+  shiftEndLabel,
   vitalsAlert,
 } from "./lib";
 
@@ -134,7 +134,7 @@ export function PersonCard({
               <span className="text-ash">
                 Shift {fmtClock(p.shift_start)}–{fmtClock(p.shift_end)}
               </span>
-              <span className="text-bone/70">{freeAtLabel(p)}</span>
+              <span className="text-bone/70">{shiftEndLabel(p)}</span>
               <span className="hidden text-ash/60 sm:inline">
                 {fmtAgo(p.updated_at)}
               </span>

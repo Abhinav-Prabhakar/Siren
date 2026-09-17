@@ -126,6 +126,12 @@ export function PersonDetailModal({
         </Alert>
       ) : p ? (
         <div className="space-y-4">
+          {error && (
+            <Alert tone="warning" title="Uplink degraded">
+              {error} — showing last synced record; polling continues every 4s.
+            </Alert>
+          )}
+
           {/* status line */}
           <div className="flex flex-wrap items-center gap-2.5">
             <Badge tone={statusTone(p.status)}>{p.status.replace("_", " ")}</Badge>

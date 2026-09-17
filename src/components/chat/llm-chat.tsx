@@ -58,7 +58,7 @@ function AgentTag({ ts, dead }: { ts: string; dead?: boolean }) {
 
 /**
  * AGENT LINK // SIREN-1 — operator ⇄ dispatch-agent uplink.
- * POSTs to the rule-based backend stub; no real LLM calls.
+ * POSTs to /api/chat, which relays to the LLM with a live station snapshot.
  */
 export function LlmChat({ className }: { className?: string }) {
   const [messages, setMessages] = useState<Line[]>([]);
@@ -116,13 +116,14 @@ export function LlmChat({ className }: { className?: string }) {
         { id: nextId(), role: "assistant", content: res.reply, ts: res.ts },
       ]);
       setLinkDown(false);
-    } catch {
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : "request failed";
       setMessages((m) => [
         ...m,
         {
           id: nextId(),
           role: "assistant",
-          content: "UPLINK LOST — backend :8000 unreachable",
+          content: `UPLINK LOST — ${detail}`,
           ts: new Date().toISOString(),
           tone: "dead",
         },

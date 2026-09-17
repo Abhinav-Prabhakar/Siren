@@ -8,7 +8,7 @@ function assignment(v: Vehicle): { label: string; value: string } {
   if (v.incident_id) return { label: "Incident", value: v.incident_id };
   return {
     label: "Post",
-    value: v.status === "available" ? "STA-01 bay" : "In transit",
+    value: v.status === "available" ? `${v.station_id} bay` : "In transit",
   };
 }
 

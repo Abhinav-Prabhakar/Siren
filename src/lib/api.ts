@@ -161,6 +161,7 @@ export interface Incident {
   humidity_pct: number;
   precip: string;
   notes: string;
+  external_contacts?: ExternalContact[];
   call_count?: number;
   unit_count?: number;
 }
@@ -172,17 +173,27 @@ export interface IncidentDetail extends Incident {
   personnel: Personnel[];
 }
 
+export interface ExternalContact {
+  service: string;
+  ts: string;
+}
+
+export interface Settings {
+  night_mode: boolean;
+}
+
 export interface Call {
   id: string;
   incident_id: string | null;
   vapi_call_id: string | null;
-  caller_name: string;
-  caller_number: string;
-  started_at: string;
+  /** Nullable — Vapi upserts a bare row before caller metadata arrives. */
+  caller_name: string | null;
+  caller_number: string | null;
+  started_at: string | null;
   ended_at: string | null;
-  duration_s: number;
-  transcript: string;
-  summary: string;
+  duration_s: number | null;
+  transcript: string | null;
+  summary: string | null;
   /** JSON array of extracted intel strings */
   extracted: string[];
   live: number;
@@ -249,7 +260,16 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     headers: body !== undefined ? { "Content-Type": "application/json" } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}`);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = ` — ${body.detail}`;
+    } catch {
+      /* non-json error body */
+    }
+    throw new Error(`${method} ${path} → ${res.status}${detail}`);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -279,10 +299,25 @@ export const api = {
     req<Call[]>("GET", `/calls${qs({ live: live === undefined ? undefined : String(live) })}`),
   dispatches: (status?: string) =>
     req<Dispatch[]>("GET", `/dispatches${qs({ status })}`),
+  createDispatch: (body: {
+    incident_id: string;
+    vehicle_ids: string[];
+    personnel_ids: string[];
+    equipment_ids: string[];
+    notes?: string;
+  }) => req<Dispatch>("POST", "/dispatches", body),
   approveDispatch: (id: string) =>
     req<Dispatch>("POST", `/dispatches/${id}/approve`),
   rejectDispatch: (id: string) =>
     req<Dispatch>("POST", `/dispatches/${id}/reject`),
+  settings: () => req<Settings>("GET", "/settings"),
+  setNightMode: (enabled: boolean) =>
+    req<Settings>("POST", "/settings/night-mode", { enabled }),
+  contactService: (incidentId: string, service: string) =>
+    req<Incident>("POST", `/incidents/${incidentId}/contact`, { service }),
+  /** Direct URL — use as href for PDF download. */
+  reportUrl: (incidentId: string) =>
+    `${API_URL}/api/incidents/${incidentId}/report`,
   events: (limit = 50) => req<Event[]>("GET", `/events?limit=${limit}`),
   telemetry: (entityType: string, entityId: string, metric?: string, limit = 60) =>
     req<TelemetryPoint[]>(

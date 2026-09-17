@@ -28,19 +28,14 @@ import {
   fmtStatus,
 } from "./shared";
 
-const DAY_MS = 86_400_000;
-
 /**
- * Inspection log — the real last_check/updated_at stamps plus
- * clearly-marked reconstructed entries so the timeline reads as a
- * service history while the backend only stores the latest check.
+ * Inspection log — only the stamps the backend actually stores:
+ * last_check (quartermaster inspection) and updated_at (telemetry sync).
  */
 function inspectionLog(item: EquipmentDetail): TimelineItem[] {
-  const last = Date.parse(item.last_check);
-  const updated = Date.parse(item.updated_at);
   const entries: { ts: number; item: TimelineItem }[] = [
     {
-      ts: updated,
+      ts: Date.parse(item.updated_at),
       item: {
         time: fmtStamp(item.updated_at),
         title: "Telemetry heartbeat",
@@ -49,37 +44,15 @@ function inspectionLog(item: EquipmentDetail): TimelineItem[] {
       },
     },
     {
-      ts: last,
+      ts: Date.parse(item.last_check),
       item: {
         time: fmtStamp(item.last_check),
         title: "Inspection logged",
-        detail: `Condition recorded at ${Math.round(item.condition_pct)}% — quartermaster sign-off`,
+        detail: `Condition recorded at ${Math.round(item.condition_pct)}%`,
         tone: "flame",
       },
     },
   ];
-  if (!Number.isNaN(last)) {
-    entries.push(
-      {
-        ts: last - DAY_MS,
-        item: {
-          time: fmtStamp(new Date(last - DAY_MS).toISOString()),
-          title: "Shift check — pass ◊",
-          detail: "Visual + function check, no defects noted",
-          tone: "bone",
-        },
-      },
-      {
-        ts: last - 7 * DAY_MS,
-        item: {
-          time: fmtStamp(new Date(last - 7 * DAY_MS).toISOString()),
-          title: "Deep service review ◊",
-          detail: "Seals, gauges and housing inspected — reconstructed entry",
-          tone: "ash",
-        },
-      },
-    );
-  }
   return entries
     .filter((e) => !Number.isNaN(e.ts))
     .sort((a, b) => b.ts - a.ts)
@@ -194,6 +167,12 @@ export function EquipmentDetailModal({
         </Alert>
       )}
 
+      {itemError && current && (
+        <Alert tone="warning" title="Uplink degraded">
+          {itemError} — showing last synced record; polling continues every 4s.
+        </Alert>
+      )}
+
       {!current && !itemError && (
         <div className="space-y-4">
           <Skeleton className="h-6 w-48" />
@@ -289,10 +268,6 @@ export function EquipmentDetailModal({
 
           <Divider label="Inspection log" />
           <Timeline items={inspectionLog(current)} />
-          <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash/70">
-            ◊ entries reconstructed for continuity preview — backend stores
-            latest check only
-          </p>
         </div>
       )}
     </Modal>

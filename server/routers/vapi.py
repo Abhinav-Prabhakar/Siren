@@ -39,7 +39,13 @@ from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
-_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "siren.db")
+try:  # load server/.env so VAPI_* config works regardless of import order
+    import env
+except ImportError:  # imported as server.routers.vapi in some contexts
+    from server import env
+env.load()
+
+_DEFAULT_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "siren.db")
 _ASSISTANT_SPEC = os.path.join(os.path.dirname(__file__), "..", "vapi", "assistant.json")
 
 # PLAN.md schema — defensively created so the webhook works pre-seed.
@@ -151,7 +157,8 @@ _VALID_INCIDENT_STATUSES = {"active", "contained", "monitoring", "resolved"}
 # --------------------------------------------------------------------------- #
 
 def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(_DB_PATH)
+    # SIREN_DB override (test suite) wins; otherwise the real siren.db.
+    conn = sqlite3.connect(os.environ.get("SIREN_DB") or _DEFAULT_DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     return conn
@@ -193,6 +200,23 @@ def _norm_addr(address: Optional[str]) -> str:
         return ""
     s = re.sub(r"[^a-z0-9\s]", " ", address.lower())
     return re.sub(r"\s+", " ", s).strip()
+
+
+def _classification_key(value: Optional[str]) -> str:
+    """Normalize a classification toward the _CLASSIFICATION_UNITS key form."""
+    return re.sub(r"[^a-z0-9]+", "_", (value or "").lower()).strip("_")
+
+
+def _units_for_classification(classification: Optional[str]) -> list:
+    """Vehicle types to propose — exact key match, then contained-key match
+    for long-form seeded classifications like 'Structure Fire — Residential'."""
+    key = _classification_key(classification)
+    if key in _CLASSIFICATION_UNITS:
+        return _CLASSIFICATION_UNITS[key]
+    for k, units in _CLASSIFICATION_UNITS.items():
+        if k in key:
+            return units
+    return ["pumper", "ambulance"]
 
 
 def _jsonable(value: Any) -> str:
@@ -463,7 +487,7 @@ def _tool_dispatch_units(conn, call_row, args: dict) -> dict:
     # Auto-propose when the caller didn't name units: available vehicles whose
     # type fits the classification, then on-duty personnel at those stations.
     if not vehicle_ids:
-        wanted = _CLASSIFICATION_UNITS.get(incident["classification"], ["pumper", "ambulance"])
+        wanted = _units_for_classification(incident["classification"])
         picked: list[str] = []
         for vtype in wanted:
             row = conn.execute(

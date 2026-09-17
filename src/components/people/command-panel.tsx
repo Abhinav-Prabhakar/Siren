@@ -5,7 +5,7 @@ import { Led } from "@/components/ui/led";
 import { Panel } from "@/components/ui/panel";
 import { fmtClock, statusTone, type Personnel } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { dutyLed, freeAtLabel, ROLE_LABELS } from "./lib";
+import { dutyLed, ROLE_LABELS, shiftEndLabel } from "./lib";
 
 /** Rank depth in the chain — incident command on top, then chief. */
 function commandRank(p: Personnel): number {
@@ -76,7 +76,7 @@ export function CommandPanel({
                   </span>
                   <span className="hidden text-right font-mono text-[9px] uppercase tracking-[0.15em] text-ash sm:block">
                     <span className={cn("block", committed && "text-blaze")}>
-                      {committed ? p.incident_id : freeAtLabel(p)}
+                      {committed ? p.incident_id : shiftEndLabel(p)}
                     </span>
                     <span className="block text-ash/60">
                       {fmtClock(p.shift_start)}–{fmtClock(p.shift_end)}

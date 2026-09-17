@@ -175,3 +175,43 @@ Do NOT touch `server/app.py`, `server/db.py`, or other routers — the auto-load
 - `server/` runs: `cd server && uvicorn app:app --port 8000` serves all endpoints with seed data.
 - Frontend pages render from live API with polling, loading + error states, all design-system.
 - Orchestrator runs `npm run build` + `npm run lint` at the end.
+
+---
+
+# Phase 2 — make it fully functional
+
+**No mocks, no fabricated data, no silent fallbacks.** Every number on screen comes from the API. Errors get real error UI. If a subsystem is down, say so — never fake it.
+
+## New/changed backend contract (backend agent implements; api.ts already updated)
+
+- **Real LLM chat.** `POST /api/chat` now calls the OpenAI-compatible endpoint: `POST {VOIDAI_BASE_URL}/chat/completions`, env `VOIDAI_API_KEY`, `VOIDAI_BASE_URL`, `VOIDAI_MODEL` (default `gpt-5-nano`). Use the `openai` pip package (`openai>=1.0` in requirements.txt) with `base_url`. System prompt: SIREN-1 dispatch copilot + a compact live snapshot built from the DB at call time (units by status, personnel on duty, active incidents w/ priority+address, pending dispatches, live calls). Keep history: load last ~20 `chat_messages` as context. On LLM/network failure → HTTP 503 `{"detail": "..."}` — do NOT fake a reply. Load env from `server/.env` with a tiny stdlib parser in `server/env.py` (split on first `=`, strip, skip blanks/comments); if `VOIDAI_API_KEY` missing → 503 with clear detail.
+- **Settings + night mode.** New table `settings(key TEXT PK, value TEXT)`. `GET /api/settings` → `{night_mode: bool}`. `POST /api/settings/night-mode {enabled: bool}` → flips flag; when enabling, auto-approve ALL currently-pending dispatches (same side-effects as manual approve). Simulator tick also auto-approves any `pending` dispatch while night_mode=on (covers agent/vapi proposals arriving later). Event rows for every auto-approval (tag `NIGHT`).
+- **Manual dispatch.** `POST /api/dispatches {incident_id, vehicle_ids[], personnel_ids[], equipment_ids[], notes?}` → creates dispatch `proposed_by='operator'`, `status='approved'` immediately, applies assignment side-effects (vehicles/personnel → `dispatched`, `incident_id` set, equipment → `in_use`), writes event (tag `OPS`). Validate ids exist; 404/422 on bad ids. Also `GET /api/dispatches` gains no filter change — keep.
+- **External contacts.** `incidents` gains column `external_contacts TEXT` (JSON array `[{service, ts}]`). `POST /api/incidents/{id}/contact {service}` (ems|police|utility|gas|other string) → appends, writes event (tag `EXT`), returns updated `Incident`. Include `external_contacts` parsed as array in incident responses.
+- **Incident report PDF.** `GET /api/incidents/{id}/report` → `application/pdf` download (`Content-Disposition: attachment; filename=<id>-report.pdf`). Use `fpdf2` (add to requirements). Contents: header (SIREN post-incident report, generated ts), incident meta (id, classification, priority, status, address, reported/resolved, weather snapshot), responding units/crew/equipment tables, calls w/ summaries, external contacts, event timeline for that incident. 404 if incident missing.
+- **Dispatch lifecycle in simulator.** Approved dispatches progress: assigned vehicles `dispatched`→`en_route` (coords interpolate toward incident, speed 40–70, set `free_at` ETA) → `on_scene` (speed 0, pump_pressure rises on pumpers) → when incident hits `resolved`: units `returning` (move back to station) → `available` (clear incident_id/free_at, speed 0). Personnel mirror their vehicle's phase. Incidents: `active`→(after units on_scene ~90s)`contained`→(~60s)`resolved` (stamp `resolved_at`). Events at every transition (tag `INC`/`UNIT`). Weather drifts on active incidents (temp ±, wind, humidity). Keep tick ~4s; make movement believable (km-scale steps).
+- **Schema migration**: `init_db` must add `settings` table + `incidents.external_contacts` column to an EXISTING siren.db (PRAGMA user_version or try/except ALTER + INSERT OR IGNORE). Don't break the seeded DB.
+- **Seed add-ons**: one incident with `external_contacts` already populated; ensure telemetry history exists for enough entities.
+
+## New endpoints summary (api.ts already has these)
+
+`api.createDispatch`, `api.settings`, `api.setNightMode`, `api.contactService`, `api.reportUrl(id)` — plus `Incident.external_contacts?: {service,ts}[]`, `Settings{night_mode}` types. UI agents: use these; do not edit api.ts.
+
+## Phase-2 file ownership
+
+| Agent | Owns |
+|---|---|
+| Backend-2 | `server/**` except `server/routers/vapi.py`, `server/vapi/**` (may add `routers/settings.py`, `routers/reports.py`, `env.py`, `llm.py`, `tests/**`) |
+| Incidents UI | `src/app/incidents/**`, `src/components/incidents/**` |
+| Console-2 | `src/app/page.tsx`, `src/components/console/**` (add night-mode Switch, manual-dispatch Modal, decided-dispatch visibility, external-contact buttons in incident modal) |
+| De-mock | `src/components/equipment/**`, `src/components/people/**`, `src/components/vehicles/**` — remove fabricated/reconstructed data, make every state honest; also fix any mock found in `src/app/equipment|people|vehicles/**` |
+
+## Testing
+
+- Backend-2 writes `server/tests/` (pytest, FastAPI TestClient on a temp DB — `tmp_path`/`SIREN_DB` env override or app factory param): health, overview shape, each list+detail endpoint, dispatch approve/reject side-effects, manual dispatch, night-mode auto-approve, contact endpoint, report returns `application/pdf`, telemetry, chat 503-without-key vs real-reply-with-key (call the real endpoint ONCE — it's cheap; no mocking of the LLM, we want proof it works). Keep total real LLM calls ≤2.
+- `server/tests/` runnable via `cd server && .venv/bin/python -m pytest tests/ -q` (add `pytest`, `httpx` to requirements.txt).
+- Orchestrator runs `npm run build` + `eslint` at the end.
+
+## Robustness review (final agent, after wave 1)
+
+Read-only review across `server/` + `src/`: contract drift vs PLAN.md, error paths, SQL injection (all queries parameterized), leaked secrets, unhandled promise rejections, race conditions in simulator, dead UI controls (buttons that do nothing = bug). Fixes small things directly; reports anything structural.

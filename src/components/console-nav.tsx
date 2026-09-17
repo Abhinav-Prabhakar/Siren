@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /* /presentation and /components stay reachable — they're hidden routes,
    not nav destinations. */
 const LINKS = [
-  { href: "/", label: "Control room" },
+  { href: "/", label: "SIREN-1" },
   { href: "/resources", label: "Resources" },
   { href: "/incidents", label: "Incidents" },
 ];

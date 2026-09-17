@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { usePolling } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
+import { ApprovalsPanel } from "@/components/console/approvals-panel";
 import { IncidentDetailPanel } from "@/components/incidents/incident-detail";
 import { IncidentTape } from "@/components/incidents/incident-tape";
 import {
@@ -112,7 +113,7 @@ function IncidentsSkeleton() {
 }
 
 export default function IncidentsPage() {
-  const { data, error, loading } = usePolling<Incident[]>(
+  const { data, error, loading, refresh } = usePolling<Incident[]>(
     api.incidents,
     POLL_MS,
   );
@@ -187,8 +188,8 @@ export default function IncidentsPage() {
           <IncidentsSkeleton />
         ) : (
           <div className="grid gap-6 xl:grid-cols-12">
-            {/* master — sector scope over the log tape */}
-            <div className="xl:col-span-5">
+            {/* master — sector scope over the log tape, approvals below */}
+            <div className="space-y-6 xl:col-span-5">
               <Panel
                 title="Board"
                 led={active > 0 ? "pulse" : "on"}
@@ -229,6 +230,12 @@ export default function IncidentsPage() {
                   />
                 </div>
               </Panel>
+
+              {/* approval queue fills the space under the board */}
+              <ApprovalsPanel
+                onSelectIncident={setPicked}
+                onChanged={refresh}
+              />
             </div>
 
             {/* detail — live incident record */}

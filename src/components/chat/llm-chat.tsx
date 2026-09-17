@@ -2,8 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Terminal } from "lucide-react";
 import { Led, Panel, Skeleton } from "@/components/ui";
-import { api, fmtClock, type ChatMessage } from "@/lib/api";
+import {
+  api,
+  fmtClock,
+  type ChatMessage,
+  type ChatToolCall,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type LineTone = "flame" | "bone" | "dead";
@@ -12,6 +18,39 @@ interface Line extends ChatMessage {
   tone?: LineTone;
   /** still receiving tokens from /api/chat/stream */
   streaming?: boolean;
+}
+
+/** Compact arg line — `key=value` pairs, arrays joined, kept on one line. */
+function fmtArgs(args: Record<string, unknown>): string {
+  const s = Object.entries(args)
+    .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : String(v)}`)
+    .join(" · ");
+  return s.length > 90 ? `${s.slice(0, 90)}…` : s;
+}
+
+/** One tool invocation — name + args on the call line, outcome below. */
+function ToolCall({ call }: { call: ChatToolCall }) {
+  return (
+    <div className="border-l border-blaze/40 pl-2.5">
+      <div className="flex items-baseline gap-2 font-mono text-[9px] uppercase tracking-[0.2em]">
+        <Terminal
+          aria-hidden
+          className="h-3 w-3 shrink-0 translate-y-[2px] text-blaze"
+        />
+        <span className="shrink-0 text-blaze/90">{call.name}</span>
+        {call.args !== undefined && Object.keys(call.args).length > 0 && (
+          <span className="min-w-0 truncate text-ash/60">
+            {fmtArgs(call.args)}
+          </span>
+        )}
+      </div>
+      {call.summary && (
+        <div className="mt-0.5 pl-5 font-mono text-[10px] tracking-wide text-ash/80">
+          {call.summary}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Three staggered pulse dots — "…" for a thinking agent. */
@@ -161,8 +200,8 @@ export function LlmChat({ className }: { className?: string }) {
     <Panel
       title="Agent link // SIREN-1"
       led={linkDown ? "off" : "on"}
-      className={className}
-      bodyClassName="p-0"
+      className={cn("flex min-h-0 flex-col", className)}
+      bodyClassName="flex min-h-0 flex-1 flex-col p-0"
       right={
         <span className="flex items-center gap-3">
           <button
@@ -181,10 +220,10 @@ export function LlmChat({ className }: { className?: string }) {
         </span>
       }
     >
-      {/* feed — newest at the bottom */}
+      {/* feed — newest at the bottom, fills the panel height */}
       <div
         ref={scrollRef}
-        className="h-[340px] space-y-2.5 overflow-y-auto px-4 py-3 [scrollbar-width:thin]"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 [scrollbar-width:thin]"
       >
         {loading ? (
           <div className="space-y-3 pt-1">
@@ -219,19 +258,9 @@ export function LlmChat({ className }: { className?: string }) {
                 )}
               >
                 {m.tool_calls !== undefined && m.tool_calls.length > 0 && (
-                  <div className="mb-1 space-y-0.5">
+                  <div className="mb-2 space-y-1.5">
                     {m.tool_calls.map((t, i) => (
-                      <div
-                        key={`${t.name}-${i}`}
-                        className="flex items-baseline gap-2 font-mono text-[9px] uppercase tracking-[0.2em]"
-                      >
-                        <span className="shrink-0 text-blaze/90">
-                          ⚙ {t.name}
-                        </span>
-                        <span className="min-w-0 truncate text-ash/70">
-                          {t.summary}
-                        </span>
-                      </div>
+                      <ToolCall key={`${t.name}-${i}`} call={t} />
                     ))}
                   </div>
                 )}

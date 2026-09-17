@@ -6,7 +6,6 @@ import {
   Droplets,
   FlaskConical,
   Gauge,
-  MapPin,
   Route,
   User,
   Zap,
@@ -243,10 +242,11 @@ function DetailBody({
           </h3>
           <Badge tone={tone}>{v.status.replace(/_/g, " ")}</Badge>
         </div>
-        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-          {v.callsign} {"//"} {v.type} {"//"} {v.station_id}
-          {v.free_at && ` · free ${fmtClock(v.free_at)}`}
-        </span>
+        {v.free_at && (
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+            free {fmtClock(v.free_at)}
+          </span>
+        )}
       </div>
 
       {/* committed */}
@@ -308,10 +308,6 @@ function DetailBody({
           icon={Route}
           value={Math.round(v.mileage_km).toLocaleString("en-US")}
           unit="km"
-        />
-        <Metric
-          icon={MapPin}
-          value={`${Math.abs(v.lat).toFixed(2)}°${v.lat >= 0 ? "N" : "S"} ${Math.abs(v.lng).toFixed(2)}°${v.lng >= 0 ? "E" : "W"}`}
         />
         <span className="ml-auto flex items-center gap-3">
           <Minimap v={v} target={target} />

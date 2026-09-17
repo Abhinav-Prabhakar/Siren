@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { BadgeTone } from "@/components/ui";
 import { statusTone, type Vehicle } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const SIZE = 44; // docked disc diameter
-const BIG = 176; // hover-expanded disc diameter
-const RING = 14; // compass band width around the disc
-const Z = 13;
-const Z_BIG = 14; // expanded view zooms in a level for detail
+const BIG = 176; // expanded disc diameter — everything renders at this size
+const RING = 16; // compass band width around the disc
+const BOX = BIG + RING * 2;
+const DOCK = 0.3; // docked scale — band reads as a thin ring when small
+const Z = 14;
 
 const CENTER_DOT: Record<BadgeTone, string> = {
   hot: "bg-flame shadow-[0_0_5px_1px_rgb(255_46_46/0.8)]",
@@ -19,13 +19,9 @@ const CENTER_DOT: Record<BadgeTone, string> = {
   plain: "bg-flame/80",
 };
 
-/** WGS84 → slippy pixel coords at zoom z. */
-function tileXY(
-  lat: number,
-  lng: number,
-  z: number,
-): { x: number; y: number } {
-  const n = 2 ** z;
+/** WGS84 → slippy pixel coords at zoom Z. */
+function tileXY(lat: number, lng: number): { x: number; y: number } {
+  const n = 2 ** Z;
   const x = ((lng + 180) / 360) * n * 256;
   const r = (lat * Math.PI) / 180;
   const y =
@@ -57,12 +53,11 @@ function bearingDeg(
 function Compass({ bearing, size }: { bearing: number | null; size: number }) {
   const c = size / 2;
   const rim = c - 1;
-  const step = size > 120 ? 15 : 30;
   const marks: ReactNode[] = [];
-  for (let d = 0; d < 360; d += step) {
+  for (let d = 0; d < 360; d += 15) {
     if (d % 90 === 0) continue; // cardinals get letters, not ticks
     const a = ((d - 90) * Math.PI) / 180;
-    const r1 = rim - 4;
+    const r1 = rim - (d % 45 === 0 ? 7 : 4);
     marks.push(
       <line
         key={d}
@@ -70,12 +65,12 @@ function Compass({ bearing, size }: { bearing: number | null; size: number }) {
         y1={c + rim * Math.sin(a)}
         x2={c + r1 * Math.cos(a)}
         y2={c + r1 * Math.sin(a)}
-        strokeWidth={0.6}
-        className="stroke-ash/50"
+        strokeWidth={d % 45 === 0 ? 1 : 0.6}
+        className={d % 45 === 0 ? "stroke-bone/60" : "stroke-ash/50"}
       />,
     );
   }
-  const lr = rim - (size > 120 ? 8 : 7);
+  const lr = rim - 8;
   return (
     <svg width={size} height={size} className="absolute inset-0 block">
       {/* bezel fill so the band reads over whatever it overlaps */}
@@ -104,7 +99,7 @@ function Compass({ bearing, size }: { bearing: number | null; size: number }) {
             y={c + lr * Math.sin(a)}
             textAnchor="middle"
             dominantBaseline="central"
-            fontSize={size > 120 ? 9.5 : 7}
+            fontSize={9.5}
             className="fill-bone/80 font-mono"
           >
             {L}
@@ -128,7 +123,8 @@ function Compass({ bearing, size }: { bearing: number | null; size: number }) {
  * Smartwatch minimap — a compass-ringed circle of offline tiles centered
  * on the unit, status pip at center, heading caret on the band pointing
  * where it's going (incident when rolling, station when returning).
- * Hover swells it out of its dock into a wider, zoomed-in view.
+ * Rendered once at full size; the docked state is just a CSS scale-down,
+ * so hover grows it smoothly with no re-render.
  */
 export function Minimap({
   v,
@@ -137,13 +133,9 @@ export function Minimap({
   v: Vehicle;
   target: { lat: number; lng: number } | null;
 }) {
-  const [big, setBig] = useState(false);
-  const size = big ? BIG : SIZE;
-  const z = big ? Z_BIG : Z;
-  const box = size + RING * 2;
   const tone = statusTone(v.status);
-  const { x, y } = tileXY(v.lat, v.lng, z);
-  const half = size / 2;
+  const { x, y } = tileXY(v.lat, v.lng);
+  const half = BIG / 2;
 
   const tiles: { tx: number; ty: number }[] = [];
   for (
@@ -166,17 +158,15 @@ export function Minimap({
   return (
     <span
       className="relative block shrink-0"
-      style={{ width: SIZE + RING * 2, height: SIZE + RING * 2 }}
+      style={{ width: BOX * DOCK, height: BOX * DOCK }}
       aria-hidden
     >
       {/* anchored bottom-right so it swells over the dialog, not the layout */}
       <span
-        className="absolute bottom-0 right-0 z-20 block"
-        style={{ width: box, height: box }}
-        onMouseEnter={() => setBig(true)}
-        onMouseLeave={() => setBig(false)}
+        className="absolute bottom-0 right-0 z-20 block origin-bottom-right scale-[0.3] transition-transform duration-200 ease-out hover:scale-100"
+        style={{ width: BOX, height: BOX }}
       >
-        <Compass bearing={bearing} size={box} />
+        <Compass bearing={bearing} size={BOX} />
 
         {/* clipped tile disc inside the band */}
         <span
@@ -197,7 +187,7 @@ export function Minimap({
                 style={{
                   left: tx * 256 - x + half,
                   top: ty * 256 - y + half,
-                  backgroundImage: `url(/map/hyderabad/${z}/${tx}/${ty}.png)`,
+                  backgroundImage: `url(/map/hyderabad/${Z}/${tx}/${ty}.png)`,
                 }}
               />
             ))}

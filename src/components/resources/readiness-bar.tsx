@@ -2,7 +2,7 @@
 
 import { Package, Truck, Users, type LucideIcon } from "lucide-react";
 import { needsAttention } from "@/components/equipment/shared";
-import { Led, Panel, Skeleton } from "@/components/ui";
+import { Led } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { Feed } from "./sidebar";
 import type { Equipment, Personnel, Vehicle } from "@/lib/api";
@@ -14,10 +14,10 @@ const ON_DUTY: ReadonlySet<string> = new Set([
   "on_scene",
 ]);
 
-const SEGMENTS = 18;
+const SEGMENTS = 8;
 
-/** One proportion line: icon · segmented ready-share · n/total. */
-function ReadyLine({
+/** icon · block segments · n/total — one glance per domain. */
+function ReadyGroup({
   Icon,
   label,
   ready,
@@ -30,33 +30,31 @@ function ReadyLine({
 }) {
   const filled = total > 0 ? Math.round((ready / total) * SEGMENTS) : 0;
   return (
-    <div className="flex items-center gap-3">
+    <span className="flex items-center gap-2.5">
       <Icon className="h-4 w-4 shrink-0 text-ash" />
-      <span className="w-14 shrink-0 font-mono text-[9px] uppercase tracking-[0.25em] text-ash">
-        {label}
-      </span>
-      <div className="flex flex-1 gap-[3px]">
+      <span className="flex gap-[3px]">
         {Array.from({ length: SEGMENTS }, (_, i) => (
           <span
             key={i}
-            className={cn(
-              "h-2.5 flex-1",
-              i < filled ? "bg-flame/80" : "bg-smoke",
-            )}
+            className={cn("h-3 w-1.5", i < filled ? "bg-flame/80" : "bg-smoke")}
           />
         ))}
-      </div>
-      <span className="w-14 shrink-0 text-right font-mono text-[10px] tabular-nums">
-        <span className="text-bone">{ready}</span>
-        <span className="text-ash/60">/{total}</span>
       </span>
-    </div>
+      <span className="font-mono text-[10px] tabular-nums">
+        <span className="text-bone">{total > 0 ? ready : "—"}</span>
+        <span className="text-ash/50">/{total > 0 ? total : "—"}</span>
+      </span>
+      <span className="font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
+        {label}
+      </span>
+    </span>
   );
 }
 
 /**
- * Station readiness at a glance — three proportion lines (fleet ready,
- * crew on duty, kit ready) instead of a grid of identical stat cards.
+ * Slim readiness strip — one line holding fleet/crew/kit ready-shares.
+ * Replaces the old stat-card grid: three small patterns, not four
+ * identical numbers.
  */
 export function ReadinessBar({
   vehicles,
@@ -71,54 +69,51 @@ export function ReadinessBar({
   const es = equipment.data;
   const ps = personnel.data;
 
-  const allDown =
+  const down =
     vs === null &&
     es === null &&
     ps === null &&
-    (vehicles.error !== null || equipment.error !== null || personnel.error !== null);
-  const allLoading = vs === null && es === null && ps === null && vehicles.loading;
+    (vehicles.error !== null ||
+      equipment.error !== null ||
+      personnel.error !== null);
 
   return (
-    <Panel
-      title="Readiness"
-      led={allDown ? "off" : "on"}
-      right="live // 4s poll"
-    >
-      {allLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-full" />
-        </div>
-      ) : allDown ? (
-        <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+    <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-b border-flame/10 pb-4">
+      {down ? (
+        <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
           <Led tone="off" size="sm" />
-          Feeds down — backend unreachable
-        </div>
+          feeds down — backend unreachable
+        </span>
       ) : (
-        <div className="space-y-2.5">
-          <ReadyLine
+        <>
+          <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-flame/80">
+            ready
+          </span>
+          <ReadyGroup
             Icon={Truck}
-            label="Fleet"
+            label="fleet"
             ready={vs ? vs.filter((v) => v.status === "available").length : 0}
             total={vs?.length ?? 0}
           />
-          <ReadyLine
+          <ReadyGroup
             Icon={Users}
-            label="Crew"
+            label="crew"
             ready={ps ? ps.filter((p) => ON_DUTY.has(p.status)).length : 0}
             total={ps?.length ?? 0}
           />
-          <ReadyLine
+          <ReadyGroup
             Icon={Package}
-            label="Kit"
+            label="kit"
             ready={
-              es ? es.filter((i) => i.status === "ready" && !needsAttention(i)).length : 0
+              es
+                ? es.filter((i) => i.status === "ready" && !needsAttention(i))
+                    .length
+                : 0
             }
             total={es?.length ?? 0}
           />
-        </div>
+        </>
       )}
-    </Panel>
+    </div>
   );
 }

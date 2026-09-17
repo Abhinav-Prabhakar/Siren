@@ -1,6 +1,5 @@
 "use client";
 
-import { Panel } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
 import { statusTone, type Vehicle } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -24,8 +23,9 @@ const markerLabel: Record<BadgeTone, string> = {
 };
 
 /**
- * Schematic sector board — vehicle lat/lng normalized into the panel frame.
- * No map library; pure HUD.
+ * Schematic sector board — the hero visual. Chromeless by design:
+ * vehicle lat/lng normalized into a bare frame, markers carry the
+ * meaning. No map library; pure HUD.
  */
 export function PositionBoard({
   vehicles,
@@ -44,7 +44,6 @@ export function PositionBoard({
   const maxLng = lngs.length ? Math.max(...lngs) : 0;
   const latSpan = Math.max(maxLat - minLat, 0.004);
   const lngSpan = Math.max(maxLng - minLng, 0.004);
-  const station = vehicles[0]?.station_id ?? "—";
 
   const px = (v: Vehicle) =>
     PAD + ((v.lng - minLng) / lngSpan) * (100 - PAD * 2);
@@ -52,76 +51,66 @@ export function PositionBoard({
     PAD + (1 - (v.lat - minLat) / latSpan) * (100 - PAD * 2);
 
   return (
-    <Panel
-      title="Position board"
-      led="on"
-      right="live gps"
-      bodyClassName="p-3"
-    >
-      <div className="bg-grid relative h-[420px] overflow-hidden border border-flame/15 bg-ink/70">
-        {/* slow radar sweep */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 animate-spin [animation-duration:12s]"
-          style={{
-            background:
-              "conic-gradient(from 0deg at 50% 50%, rgb(255 46 46 / 0.07), transparent 70deg)",
-          }}
-        />
-        {/* center crosshair */}
-        <span
-          aria-hidden
-          className="absolute inset-x-0 top-1/2 border-t border-flame/10"
-        />
-        <span
-          aria-hidden
-          className="absolute inset-y-0 left-1/2 border-l border-flame/10"
-        />
+    <div className="bg-grid relative h-[440px] overflow-hidden border border-flame/15 bg-ink/70">
+      {/* slow radar sweep */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 animate-spin [animation-duration:12s]"
+        style={{
+          background:
+            "conic-gradient(from 0deg at 50% 50%, rgb(255 46 46 / 0.07), transparent 70deg)",
+        }}
+      />
+      {/* center crosshair */}
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-1/2 border-t border-flame/10"
+      />
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-1/2 border-l border-flame/10"
+      />
 
-        <span className="absolute bottom-1.5 right-2 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/60">
-          {station} {"//"} sector
-        </span>
+      {vehicles.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center font-mono text-[10px] uppercase tracking-[0.3em] text-ash/60">
+          no position telemetry
+        </div>
+      )}
 
-        {vehicles.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center font-mono text-[10px] uppercase tracking-[0.3em] text-ash/60">
-            no position telemetry //
-          </div>
-        )}
-
-        {vehicles.map((v) => {
-          const tone = statusTone(v.status);
-          const selected = v.id === selectedId;
-          return (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => onSelect(v.id)}
-              className="group absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer focus-visible:outline-none"
-              style={{ left: `${px(v)}%`, top: `${py(v)}%` }}
-              title={`${v.callsign} — ${v.status}`}
-            >
-              <span className="flex flex-col items-center gap-1">
-                <span
-                  className={cn(
-                    "block h-3 w-3 rotate-45 border border-ink/60 transition-transform group-hover:scale-125",
-                    markerDot[tone],
-                    selected && "shadow-[0_0_0_2px_var(--color-ink),0_0_0_3px_var(--color-flame)]",
-                  )}
-                />
-                <span
-                  className={cn(
-                    "clip-tag border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.2em] [--chamfer:4px]",
-                    markerLabel[tone],
-                    selected && "text-glow",
-                  )}
-                >
-                  {v.callsign}
-                </span>
+      {vehicles.map((v) => {
+        const tone = statusTone(v.status);
+        const selected = v.id === selectedId;
+        return (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => onSelect(v.id)}
+            className="group absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer focus-visible:outline-none"
+            style={{ left: `${px(v)}%`, top: `${py(v)}%` }}
+            title={`${v.callsign} — ${v.status}`}
+          >
+            <span className="flex flex-col items-center gap-1">
+              <span
+                className={cn(
+                  "block h-3 w-3 rotate-45 border border-ink/60 transition-transform group-hover:scale-125",
+                  markerDot[tone],
+                  selected &&
+                    "shadow-[0_0_0_2px_var(--color-ink),0_0_0_3px_var(--color-flame)]",
+                )}
+              />
+              <span
+                className={cn(
+                  "clip-tag border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.2em] [--chamfer:4px]",
+                  markerLabel[tone],
+                  selected && "text-glow",
+                )}
+              >
+                {v.callsign}
               </span>
-            </button>
-          );
-        })}
-      </div>
-    </Panel>
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

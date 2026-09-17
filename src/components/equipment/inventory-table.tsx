@@ -4,6 +4,11 @@ import type { KeyboardEvent } from "react";
 import { Badge, Meter } from "@/components/ui";
 import { fmtAgo, statusTone, type Equipment } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import {
+  CategoryIcon,
+  countdownState,
+  MONITORING,
+} from "./monitoring";
 import { fmtStatus, LOW_CONDITION_AT } from "./shared";
 
 const HEADERS = [
@@ -39,6 +44,9 @@ function ItemRow({
     }
   }
 
+  const mon = MONITORING[item.category];
+  const cd = countdownState(item);
+
   return (
     <tr
       tabIndex={0}
@@ -49,9 +57,18 @@ function ItemRow({
     >
       <td className="px-3 py-1.5 font-mono text-xs text-flame">{item.id}</td>
       <td className="px-3 py-1.5 text-xs font-semibold text-bone/90">
-        {item.name}
-        <span className="block font-mono text-[9px] font-normal uppercase tracking-[0.2em] text-ash/70">
-          SN {item.serial}
+        <span className="flex items-center gap-2.5">
+          <CategoryIcon
+            category={item.category}
+            size={28}
+            className="shrink-0"
+          />
+          <span>
+            {item.name}
+            <span className="block font-mono text-[9px] font-normal uppercase tracking-[0.2em] text-ash/70">
+              SN {item.serial}
+            </span>
+          </span>
         </span>
       </td>
       <td className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-ash">
@@ -64,17 +81,32 @@ function ItemRow({
         {item.vehicle_id ?? <span className="text-ash">stores</span>}
       </td>
       <td className="px-3 py-1.5">
-        {item.battery_pct === null ? (
+        {item.battery_pct === null || mon.cellLabel === null ? (
           <span className="font-mono text-xs text-ash">—</span>
         ) : (
-          <CellMeter label="cell" value={item.battery_pct} />
+          <CellMeter label={mon.cellLabel} value={item.battery_pct} />
         )}
       </td>
       <td className="px-3 py-1.5">
-        <CellMeter label="cond" value={item.condition_pct} lowAt={LOW_CONDITION_AT} />
+        <CellMeter
+          label={mon.integrityLabel}
+          value={item.condition_pct}
+          lowAt={LOW_CONDITION_AT}
+        />
       </td>
       <td className="px-3 py-1.5 text-right font-mono text-[10px] tracking-wider text-ash">
         {fmtAgo(item.last_check)}
+        <span
+          className={cn(
+            "block text-[9px] uppercase tracking-[0.2em]",
+            cd.overdue ? "text-flame" : "text-ash/60",
+          )}
+          title={`${mon.countdown.label} horizon — ${mon.countdown.intervalDays}d cycle`}
+        >
+          {cd.overdue
+            ? `${mon.countdown.label} +${Math.abs(cd.dueInDays)}d`
+            : `${mon.countdown.label} d-${cd.dueInDays}`}
+        </span>
       </td>
     </tr>
   );

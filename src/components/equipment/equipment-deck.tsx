@@ -6,6 +6,10 @@ import { EquipmentDetailModal } from "@/components/equipment/equipment-detail-mo
 import { InventoryTable } from "@/components/equipment/inventory-table";
 import { ReadinessStrip } from "@/components/equipment/readiness-strip";
 import {
+  CategoryIcon,
+  MONITORING,
+} from "@/components/equipment/monitoring";
+import {
   CATEGORIES,
   needsAttention,
   severityRank,
@@ -220,6 +224,25 @@ export function EquipmentDeck() {
                   className="w-max min-w-full"
                 />
               </div>
+
+              {category !== "all" && (
+                <div className="flex items-center gap-3 border border-flame/15 bg-coal/50 px-3 py-2">
+                  <CategoryIcon
+                    category={category}
+                    size={30}
+                    className="shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-flame">
+                      {"// "}
+                      {MONITORING[category].headline}
+                    </div>
+                    <div className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-ash/90">
+                      {MONITORING[category].brief}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {filtered.length === 0 ? (
                 <p className="border border-flame/15 bg-ink/60 px-4 py-6 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-ash">

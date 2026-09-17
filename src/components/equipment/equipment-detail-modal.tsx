@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   Divider,
-  Meter,
   Modal,
   Skeleton,
   Sparkline,
@@ -21,6 +20,11 @@ import {
   type EquipmentDetail,
   type TelemetryPoint,
 } from "@/lib/api";
+import {
+  CategoryIcon,
+  MONITORING,
+  MonitoringReadout,
+} from "./monitoring";
 import {
   LOW_CONDITION_AT,
   attentionReasons,
@@ -183,16 +187,25 @@ export function EquipmentDetailModal({
 
       {current && (
         <div className="space-y-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge tone={statusTone(current.status)}>
-              {fmtStatus(current.status)}
-            </Badge>
-            <Badge tone="plain" noDot>
-              {current.category}
-            </Badge>
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
-              {`${current.id} // SN ${current.serial}`}
-            </span>
+          <div className="flex items-start gap-4">
+            <div className="clip-chamfer shrink-0 border border-flame/25 bg-coal/80 p-1">
+              <CategoryIcon
+                category={current.category}
+                size={76}
+                className="block"
+              />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 pt-1">
+              <Badge tone={statusTone(current.status)}>
+                {fmtStatus(current.status)}
+              </Badge>
+              <Badge tone="plain" noDot>
+                {current.category}
+              </Badge>
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+                {`${current.id} // SN ${current.serial}`}
+              </span>
+            </div>
           </div>
 
           {reasons.length > 0 && (
@@ -208,30 +221,15 @@ export function EquipmentDetailModal({
             </Alert>
           )}
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            {current.battery_pct !== null ? (
-              <Meter label="Battery cell" value={current.battery_pct} />
-            ) : (
-              <div>
-                <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-                  Battery cell
-                </div>
-                <div className="mt-1 font-mono text-xs text-bone/60">
-                  — passive item, no cell fitted
-                </div>
-              </div>
-            )}
-            <Meter
-              label="Condition"
-              value={current.condition_pct}
-              lowAt={LOW_CONDITION_AT}
-            />
-          </div>
+          <MonitoringReadout item={current} />
 
-          {points.length > 1 && (
+          {points.length > 1 && MONITORING[current.category].traceLabel && (
             <div>
               <div className="mb-1.5 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
-                Battery history // last {points.length} telemetry ticks
+                {MONITORING[current.category].traceLabel?.replace(
+                  "{n}",
+                  String(points.length),
+                )}
               </div>
               <Sparkline
                 data={points.map((p) => p.value)}

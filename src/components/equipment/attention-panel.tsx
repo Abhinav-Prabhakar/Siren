@@ -2,6 +2,7 @@
 
 import { Alert, Panel } from "@/components/ui";
 import type { Equipment } from "@/lib/api";
+import { CategoryIcon } from "./monitoring";
 import { attentionReasons, needsAttention, severityRank } from "./shared";
 
 /**
@@ -46,7 +47,12 @@ export function AttentionPanel({
                   tone={critical ? "critical" : "warning"}
                   title={`${item.id} // ${item.status === "missing" ? "missing" : item.status === "maintenance" ? "maintenance" : "low battery"}`}
                 >
-                  <span className="block font-semibold text-bone/90">
+                  <span className="flex items-center gap-2 font-semibold text-bone/90">
+                    <CategoryIcon
+                      category={item.category}
+                      size={22}
+                      className="shrink-0"
+                    />
                     {item.name}
                   </span>
                   {attentionReasons(item).map((r) => (

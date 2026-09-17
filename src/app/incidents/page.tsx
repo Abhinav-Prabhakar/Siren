@@ -6,7 +6,6 @@ import {
   Alert,
   Badge,
   Button,
-  IncidentCard,
   PageHeader,
   Panel,
   Skeleton,
@@ -17,7 +16,6 @@ import {
 } from "@/components/ui";
 import {
   api,
-  fmtAgo,
   statusTone,
   type Incident,
   type IncidentPriority,
@@ -26,6 +24,7 @@ import {
 import { usePolling } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
 import { IncidentDetailPanel } from "@/components/incidents/incident-detail";
+import { IncidentLogCard } from "@/components/incidents/incident-log-card";
 
 const POLL_MS = 4000;
 
@@ -182,35 +181,9 @@ export default function IncidentsPage() {
                             "ring-1 ring-flame/70 shadow-[0_0_24px_-6px_rgb(255_46_46/0.6)]",
                         )}
                       >
-                        <IncidentCard
-                          incident={{
-                            id: inc.id,
-                            priority: inc.priority,
-                            classification: inc.classification,
-                            address: inc.address,
-                            reportedAgo: fmtAgo(inc.reported_at),
-                            status: inc.status,
-                            statusTone: statusTone(inc.status),
-                            calls: `${inc.call_count ?? 0} calls`,
-                            units:
-                              (inc.unit_count ?? 0) > 0
-                                ? [
-                                    `${inc.unit_count} unit${inc.unit_count === 1 ? "" : "s"}`,
-                                  ]
-                                : undefined,
-                          }}
-                          actions={
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPicked(inc.id);
-                              }}
-                            >
-                              Inspect
-                            </Button>
-                          }
+                        <IncidentLogCard
+                          incident={inc}
+                          selected={selected === inc.id}
                         />
                       </div>
                     ))

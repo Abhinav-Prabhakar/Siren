@@ -606,7 +606,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
 
   return (
     <Panel
-      title={`Incident record // ${id}`}
+      title="Incident record"
       led={inc?.status === "active" ? "pulse" : "on"}
       right={
         inc ? (

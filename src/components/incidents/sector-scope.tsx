@@ -305,9 +305,6 @@ export function SectorScope({
       <span aria-hidden className="absolute right-1.5 top-1.5 h-3 w-3 border-r-2 border-t-2 border-flame/50" />
       <span aria-hidden className="absolute bottom-1.5 left-1.5 h-3 w-3 border-b-2 border-l-2 border-flame/50" />
       <span aria-hidden className="absolute bottom-1.5 right-1.5 h-3 w-3 border-b-2 border-r-2 border-flame/50" />
-      <span className="absolute bottom-2.5 left-3 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/80">
-        {live.length} tgt {vectors ? "// ao plot" : "// sector"}
-      </span>
       <span className="absolute bottom-2.5 right-3 font-mono text-[8px] uppercase tracking-[0.25em] text-ash/80">
         {live.length > 0 ? ringLabel : "no signal"}
       </span>

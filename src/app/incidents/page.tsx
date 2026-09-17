@@ -4,8 +4,6 @@ import { useState } from "react";
 import { ConsoleNav } from "@/components/console-nav";
 import {
   Alert,
-  Badge,
-  Button,
   PageHeader,
   Panel,
   Skeleton,
@@ -114,7 +112,7 @@ function IncidentsSkeleton() {
 }
 
 export default function IncidentsPage() {
-  const { data, error, loading, refresh } = usePolling<Incident[]>(
+  const { data, error, loading } = usePolling<Incident[]>(
     api.incidents,
     POLL_MS,
   );
@@ -166,24 +164,11 @@ export default function IncidentsPage() {
       <main className="mx-auto max-w-[1600px] space-y-6 px-5 py-6">
         <PageHeader
           title="Incidents"
-          sub="Event log & response // STA-01"
           back={{ href: "/", label: "Control room" }}
           status={
-            <span className="flex items-center gap-4">
-              {incidents.length > 0 && (
-                <PrioritySpectrum incidents={incidents} />
-              )}
-              <Badge tone={error && !data ? "dead" : active > 0 ? "hot" : "cold"}>
-                {error && !data
-                  ? "Link down"
-                  : `${incidents.length} incidents // ${active} active`}
-              </Badge>
-            </span>
-          }
-          actions={
-            <Button variant="outline" size="sm" led="on" onClick={refresh}>
-              Resync
-            </Button>
+            incidents.length > 0 ? (
+              <PrioritySpectrum incidents={incidents} />
+            ) : undefined
           }
         />
 
@@ -207,7 +192,6 @@ export default function IncidentsPage() {
               <Panel
                 title="Incident board"
                 led={active > 0 ? "pulse" : "on"}
-                right={`${filtered.length}/${incidents.length} records`}
                 bodyClassName="p-0"
               >
                 <div className="border-b border-flame/15">

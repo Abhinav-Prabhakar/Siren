@@ -457,3 +457,18 @@ export function fmtDuration(totalS: number): string {
   const s = totalS % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+/** ISO ts → elapsed mission clock "T+MM:SS" / "T+H:MM" / "T+Nd". */
+export function fmtElapsed(iso: string | null | undefined): string {
+  if (!iso) return "T+--:--";
+  const s = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 1000));
+  if (s < 3600) {
+    const m = Math.floor(s / 60);
+    return `T+${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  }
+  const h = Math.floor(s / 3600);
+  if (h < 24) {
+    return `T+${h}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}`;
+  }
+  return `T+${Math.floor(h / 24)}d`;
+}

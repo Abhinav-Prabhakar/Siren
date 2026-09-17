@@ -2,40 +2,58 @@
 
 import { useState } from "react";
 import {
+  CheckCircle2,
   Clock,
+  Cloud,
+  CloudFog,
+  CloudRain,
+  CloudSnow,
+  Crosshair,
+  Droplets,
   FileDown,
   Flag,
   Gauge,
   Hash,
+  Heart,
   History,
   MapPin,
   Navigation,
   NotebookPen,
   Package,
   Phone,
+  PhoneCall,
+  PhoneOff,
   PhoneOutgoing,
+  Radio,
+  RadioTower,
   Send,
+  Siren,
+  Sun,
+  Thermometer,
   Truck,
   Users,
   Wind,
+  XCircle,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Alert,
-  Badge,
   Button,
-  CallCard,
-  CrewChip,
+  Compass,
   Panel,
   Skeleton,
   Timeline,
-  WeatherStrip,
+  windDeg,
   type TimelineItem,
 } from "@/components/ui";
+import { CallWire } from "@/components/console/call-wire";
+import { Silhouette } from "@/components/resources/vehicle-gauges";
 import {
   api,
   fmtAgo,
   fmtClock,
   fmtDuration,
+  fmtElapsed,
   statusTone,
   type Dispatch,
   type Event,
@@ -49,8 +67,6 @@ import {
   DISPATCH_ICONS,
   SERVICE_ICON_FALLBACK,
   SERVICE_ICONS,
-  VEHICLE_ICON_FALLBACK,
-  VEHICLE_ICONS,
   classificationKey,
   toneTextClass,
 } from "./incident-icons";
@@ -61,6 +77,7 @@ import {
   SectionHead,
   StatusChip,
 } from "./marks";
+import { SectorScope, type ScopeBlip } from "./sector-scope";
 
 const POLL_MS = 4000;
 const EVENT_LIMIT = 100;
@@ -70,6 +87,14 @@ const CONTACT_SERVICES = [
   { id: "police", label: "Police" },
   { id: "utility", label: "Utility" },
 ] as const;
+
+/* status stamps — decided orders read as stamps, never badges */
+const STAMP_TONE: Record<string, string> = {
+  pending: "border-blaze/50 text-blaze",
+  approved: "border-flame/50 text-flame",
+  completed: "border-bone/30 text-bone/70",
+  rejected: "border-ash/30 text-ash/60",
+};
 
 /** `extracted` arrives as a JSON column — accept array or encoded string. */
 function asStringList(value: unknown): string[] {
@@ -83,6 +108,32 @@ function asStringList(value: unknown): string[] {
     }
   }
   return [];
+}
+
+/* precip is free text — keyword-match to a glyph key, never the component */
+const PRECIP_ICONS = {
+  storm: CloudRain,
+  rain: CloudRain,
+  snow: CloudSnow,
+  fog: CloudFog,
+  clear: Sun,
+  default: Cloud,
+} satisfies Record<string, LucideIcon>;
+
+const PRECIP_RULES: [RegExp, keyof typeof PRECIP_ICONS][] = [
+  [/storm|lightning|thunder/, "storm"],
+  [/rain|drizzle|shower/, "rain"],
+  [/snow|hail|sleet/, "snow"],
+  [/fog|mist|haze|smoke/, "fog"],
+  [/none|clear|dry/, "clear"],
+];
+
+function precipKey(precip: string | undefined): keyof typeof PRECIP_ICONS {
+  const s = (precip ?? "").toLowerCase();
+  for (const [re, key] of PRECIP_RULES) {
+    if (re.test(s)) return key;
+  }
+  return "default";
 }
 
 function EmptyLine({ text }: { text: string }) {
@@ -114,6 +165,7 @@ function buildTimeline(inc: IncidentDetail, events: Event[]): TimelineItem[] {
     title: "Incident reported",
     detail: `${inc.classification || "unclassified"} // ${inc.address || "no address"}`,
     tone: "flame",
+    icon: Siren,
   });
 
   for (const c of inc.calls) {
@@ -121,8 +173,13 @@ function buildTimeline(inc: IncidentDetail, events: Event[]): TimelineItem[] {
       title: `Call ${c.id}${c.live ? " — live" : ""}`,
       detail: `${c.caller_name || "unknown caller"} // ${c.caller_number || "no number"} // ${c.duration_s != null ? fmtDuration(c.duration_s) : "in progress"}`,
       tone: c.live ? "flame" : "bone",
+      icon: c.live ? PhoneCall : Phone,
     });
-    push(c.ended_at, { title: `Call ${c.id} ended`, tone: "ash" });
+    push(c.ended_at, {
+      title: `Call ${c.id} ended`,
+      tone: "ash",
+      icon: PhoneOff,
+    });
   }
 
   for (const d of inc.dispatches) {
@@ -131,19 +188,29 @@ function buildTimeline(inc: IncidentDetail, events: Event[]): TimelineItem[] {
       title: `Dispatch ${d.id} proposed`,
       detail: `by ${d.proposed_by} // ${units}`,
       tone: "bone",
+      icon: Send,
     });
     push(d.decided_at, {
       title: `Dispatch ${d.id} ${d.status}`,
       detail: d.notes || undefined,
       tone: d.status === "rejected" ? "ash" : "flame",
+      icon: d.status === "rejected" ? XCircle : CheckCircle2,
     });
   }
 
   for (const ct of inc.external_contacts ?? []) {
-    push(ct.ts, { title: `External contact // ${ct.service}`, tone: "bone" });
+    push(ct.ts, {
+      title: `External contact // ${ct.service}`,
+      tone: "bone",
+      icon: RadioTower,
+    });
   }
 
-  push(inc.resolved_at, { title: "Incident resolved", tone: "ash" });
+  push(inc.resolved_at, {
+    title: "Incident resolved",
+    tone: "ash",
+    icon: Flag,
+  });
 
   // backend event-log rows that name this incident
   for (const e of events) {
@@ -152,6 +219,7 @@ function buildTimeline(inc: IncidentDetail, events: Event[]): TimelineItem[] {
       title: e.message,
       detail: e.tag ? `tag ${e.tag}` : undefined,
       tone: e.tone,
+      icon: Radio,
     });
   }
 
@@ -159,12 +227,100 @@ function buildTimeline(inc: IncidentDetail, events: Event[]): TimelineItem[] {
   return items.map((i) => i.item);
 }
 
-/** One responding apparatus — type glyph, callsign, live speed, status. */
-function UnitRow({ v }: { v: IncidentDetail["vehicles"][number] }) {
-  const VIcon = VEHICLE_ICONS[v.type] ?? VEHICLE_ICON_FALLBACK;
+/* ---------- instruments ---------- */
+
+/** Thin readout bar for the WX console — label, fill, value. */
+function WxBar({
+  label,
+  pct,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  /** 0–100 fill */
+  pct: number | null;
+  value: string;
+  icon: LucideIcon;
+}) {
+  const v = pct === null ? null : Math.max(0, Math.min(100, pct));
   return (
-    <div className="flex items-center gap-3 border border-flame/10 bg-ink/50 px-3 py-2">
-      <GlyphTile icon={VIcon} className="border-flame/15 bg-smoke/60" />
+    <div className="flex items-center gap-2.5">
+      <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-flame/70" />
+      <span className="w-14 shrink-0 font-mono text-[8px] uppercase tracking-[0.25em] text-ash">
+        {label}
+      </span>
+      <span className="h-[5px] min-w-0 flex-1 bg-smoke">
+        {v !== null && (
+          <span
+            className="block h-full bg-gradient-to-r from-blood via-flame/80 to-flame"
+            style={{ width: `${v}%` }}
+          />
+        )}
+      </span>
+      <span className="w-11 shrink-0 text-right font-mono text-[10px] tabular-nums text-bone/80">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * WX console — compass dial + thin readout bars, no cells.
+ * Wind is a needle, temp/humidity are bars, precip is a sky glyph.
+ */
+function WxConsole({ inc }: { inc: IncidentDetail }) {
+  const PrecipIcon = PRECIP_ICONS[precipKey(inc.precip)];
+  return (
+    <div className="flex items-center gap-4 border border-flame/15 bg-ink/60 p-3.5">
+      <Compass deg={windDeg(inc.wind_dir)} dim={!inc.wind_dir} />
+      <div className="min-w-0 flex-1 space-y-2.5">
+        <div className="flex items-baseline gap-2 font-mono text-[11px] tracking-[0.1em]">
+          <Wind aria-hidden className="h-3 w-3 translate-y-px text-flame/70" />
+          <span className="text-bone">{inc.wind || "—"}</span>
+          <span className="text-flame/80">{inc.wind_dir || ""}</span>
+          <span className="ml-auto text-[8px] uppercase tracking-[0.25em] text-ash">
+            wind
+          </span>
+        </div>
+        <WxBar
+          icon={Thermometer}
+          label="temp"
+          pct={inc.temp_c != null ? (inc.temp_c / 50) * 100 : null}
+          value={inc.temp_c != null ? `${Math.round(inc.temp_c)}°c` : "—"}
+        />
+        <WxBar
+          icon={Droplets}
+          label="humid"
+          pct={inc.humidity_pct}
+          value={
+            inc.humidity_pct != null ? `${Math.round(inc.humidity_pct)}%` : "—"
+          }
+        />
+        <div className="flex items-center gap-2.5">
+          <PrecipIcon
+            aria-hidden
+            className="h-3.5 w-3.5 shrink-0 text-flame/70"
+          />
+          <span className="w-14 shrink-0 font-mono text-[8px] uppercase tracking-[0.25em] text-ash">
+            precip
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-bone/80">
+            {inc.precip || "—"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One responding apparatus — its own silhouette IS the readout (fill level
+ * tracks fuel), flanked by callsign, live speed and status.
+ */
+function UnitRow({ v }: { v: IncidentDetail["vehicles"][number] }) {
+  return (
+    <div className="flex items-center gap-3.5 border-b border-flame/10 py-2 last:border-b-0">
+      <Silhouette v={v} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2.5">
           <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-bone">
@@ -185,18 +341,96 @@ function UnitRow({ v }: { v: IncidentDetail["vehicles"][number] }) {
           upd {fmtAgo(v.updated_at)}
         </div>
       </div>
-      <Badge tone={statusTone(v.status)} noDot className="shrink-0">
+      <span
+        className={cn(
+          "shrink-0 font-mono text-[8px] uppercase tracking-[0.2em]",
+          toneTextClass(statusTone(v.status)),
+        )}
+      >
         {v.status.replace(/_/g, " ")}
-      </Badge>
+      </span>
     </div>
   );
 }
 
 /**
- * One dispatch order — status glyph, resource counts, decision actions.
- * Approve/reject stay inline for pending proposals.
+ * One responder as a vitals strip — the heart literally beats at their bpm,
+ * SCBA reads as a segmented air bar. People pulse; machines roll.
  */
-function DispatchRow({
+function VitalRow({ p }: { p: IncidentDetail["personnel"][number] }) {
+  const bpm = Math.round(p.heart_rate);
+  const scba = Math.max(0, Math.min(100, p.scba_pct));
+  const low = scba < 25;
+  const segs = Math.round(scba / 10);
+  return (
+    <div className="flex items-center gap-3.5 border-b border-flame/10 py-2.5 last:border-b-0">
+      <Heart
+        aria-hidden
+        fill="currentColor"
+        className={cn(
+          "animate-heartbeat h-4 w-4 shrink-0",
+          bpm > 160 ? "text-flame" : "text-flame/75",
+        )}
+        style={{ animationDuration: `${60 / Math.max(bpm, 40)}s` }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-display text-[12px] font-bold uppercase tracking-[0.1em] text-bone">
+            {p.name}
+          </span>
+          <span className="truncate font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+            {p.rank} {p.role.replace(/_/g, " ")}
+          </span>
+        </div>
+      </div>
+      <span className="hidden shrink-0 items-baseline gap-1 font-mono text-[10px] tabular-nums text-bone/70 sm:flex">
+        {bpm}
+        <span className="text-[8px] uppercase tracking-[0.2em] text-ash">
+          bpm
+        </span>
+      </span>
+      <span
+        className="flex shrink-0 items-center gap-1.5"
+        title={`scba ${Math.round(scba)}%`}
+      >
+        <span className="flex gap-[2px]">
+          {Array.from({ length: 10 }, (_, i) => (
+            <span
+              key={i}
+              className={cn(
+                "h-2 w-[3px]",
+                i < segs
+                  ? low
+                    ? "bg-flame"
+                    : "bg-bone/55"
+                  : "bg-smoke",
+                low && i === segs - 1 && "animate-pulse",
+              )}
+            />
+          ))}
+        </span>
+        <span className="font-mono text-[10px] tabular-nums text-bone/70">
+          {Math.round(scba)}%
+        </span>
+      </span>
+      <span
+        className={cn(
+          "hidden shrink-0 font-mono text-[8px] uppercase tracking-[0.2em] md:block",
+          toneTextClass(statusTone(p.status)),
+        )}
+      >
+        {p.status.replace(/_/g, " ")}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * One dispatch order as a perforated ticket — status glyph stub on the left,
+ * stamped state word, resource counts as icon tallies. Pending tickets carry
+ * a hazard edge and keep their approve/reject actions inline.
+ */
+function DispatchTicket({
   d,
   acting,
   onDecide,
@@ -206,73 +440,100 @@ function DispatchRow({
   onDecide: (d: Dispatch, intent: "approve" | "reject") => void;
 }) {
   const DIcon = DISPATCH_ICONS[d.status] ?? DISPATCH_ICON_FALLBACK;
+  const pending = d.status === "pending";
   return (
-    <div className="border border-flame/10 bg-ink/50 px-3 py-2.5">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+    <div
+      className={cn(
+        "flex items-stretch border",
+        pending ? "border-blaze/30 bg-blaze/[0.04]" : "border-flame/10",
+      )}
+    >
+      {/* stub — status glyph on a perforated edge */}
+      <span className="relative flex w-11 shrink-0 items-center justify-center border-r border-dashed border-flame/25">
+        {pending && (
+          <span
+            aria-hidden
+            className="bg-hazard-tight absolute inset-y-0 left-0 w-[3px]"
+          />
+        )}
         <DIcon
           aria-hidden
-          className={cn("h-3.5 w-3.5 shrink-0", toneTextClass(statusTone(d.status)))}
+          className={cn(
+            "h-4 w-4",
+            toneTextClass(statusTone(d.status)),
+            pending && "animate-pulse",
+          )}
         />
-        <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-bone">
-          {d.id}
-        </span>
-        <Badge tone={statusTone(d.status)} noDot>
-          {d.status}
-        </Badge>
-        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-          by {d.proposed_by}
-        </span>
-        <span className="ml-auto flex items-center gap-3 font-mono text-[10px] text-bone/70">
-          <span className="flex items-center gap-1" title="vehicles">
-            <Truck aria-hidden className="h-3 w-3 text-flame/70" />
-            {d.vehicle_ids.length}
+      </span>
+
+      <div className="min-w-0 flex-1 px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-bone">
+            {d.id}
           </span>
-          <span className="flex items-center gap-1" title="personnel">
-            <Users aria-hidden className="h-3 w-3 text-flame/70" />
-            {d.personnel_ids.length}
+          <span
+            className={cn(
+              "border px-1.5 py-px font-mono text-[8px] font-bold uppercase tracking-[0.25em]",
+              STAMP_TONE[d.status] ?? STAMP_TONE.rejected,
+            )}
+          >
+            {d.status}
           </span>
-          <span className="flex items-center gap-1" title="equipment">
-            <Package aria-hidden className="h-3 w-3 text-flame/70" />
-            {d.equipment_ids.length}
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+            by {d.proposed_by}
           </span>
-        </span>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-          <Clock aria-hidden className="h-3 w-3" />
-          {fmtClock(d.created_at)}
-        </span>
-        {d.decided_at && (
+          <span className="ml-auto flex items-center gap-3 font-mono text-[10px] text-bone/70">
+            <span className="flex items-center gap-1" title="vehicles">
+              <Truck aria-hidden className="h-3 w-3 text-flame/70" />
+              {d.vehicle_ids.length}
+            </span>
+            <span className="flex items-center gap-1" title="personnel">
+              <Users aria-hidden className="h-3 w-3 text-flame/70" />
+              {d.personnel_ids.length}
+            </span>
+            <span className="flex items-center gap-1" title="equipment">
+              <Package aria-hidden className="h-3 w-3 text-flame/70" />
+              {d.equipment_ids.length}
+            </span>
+          </span>
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-            <Flag aria-hidden className="h-3 w-3" />
-            decided {fmtClock(d.decided_at)}
+            <Clock aria-hidden className="h-3 w-3" />
+            {fmtClock(d.created_at)}
           </span>
-        )}
-        {d.notes ? (
-          <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-ash/80">
-            {d.notes}
-          </span>
-        ) : null}
-        {d.status === "pending" && (
-          <span className="ml-auto inline-flex gap-2">
-            <Button
-              variant="solid"
-              size="sm"
-              disabled={acting !== null}
-              onClick={() => onDecide(d, "approve")}
-            >
-              {acting === `${d.id}:approve` ? "…" : "Approve"}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={acting !== null}
-              onClick={() => onDecide(d, "reject")}
-            >
-              {acting === `${d.id}:reject` ? "…" : "Reject"}
-            </Button>
-          </span>
-        )}
+          {d.decided_at && (
+            <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
+              <Flag aria-hidden className="h-3 w-3" />
+              decided {fmtClock(d.decided_at)}
+            </span>
+          )}
+          {d.notes ? (
+            <span className="truncate font-mono text-[9px] uppercase tracking-[0.15em] text-ash/80">
+              {d.notes}
+            </span>
+          ) : null}
+          {pending && (
+            <span className="ml-auto inline-flex gap-2">
+              <Button
+                variant="solid"
+                size="sm"
+                disabled={acting !== null}
+                onClick={() => onDecide(d, "approve")}
+              >
+                {acting === `${d.id}:approve` ? "…" : "Approve"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={acting !== null}
+                onClick={() => onDecide(d, "reject")}
+              >
+                {acting === `${d.id}:reject` ? "…" : "Reject"}
+              </Button>
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -337,6 +598,19 @@ export function IncidentDetailPanel({ id }: { id: string }) {
   const ClassIcon = inc
     ? CLASSIFICATION_ICONS[classificationKey(inc.classification)]
     : null;
+  const unitBlips: ScopeBlip[] = inc
+    ? inc.vehicles.map((v) => ({
+        id: v.id,
+        lat: v.lat,
+        lng: v.lng,
+        tone: statusTone(v.status),
+        label: v.callsign,
+        pulse:
+          v.status === "en_route" ||
+          v.status === "dispatched" ||
+          v.status === "on_scene",
+      }))
+    : [];
 
   return (
     <Panel
@@ -384,7 +658,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             </Alert>
           )}
 
-          {/* hero — classification glyph, status, priority, meta grid */}
+          {/* hero — glyph, classification, chips, T+ mission clock */}
           <div className="relative overflow-hidden border border-flame/20 bg-gradient-to-br from-wine/50 via-coal to-ink">
             {ClassIcon && (
               <ClassIcon
@@ -393,7 +667,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
                 className="pointer-events-none absolute -right-5 -top-6 h-32 w-32 text-flame/[0.07]"
               />
             )}
-            <div className="relative flex items-center gap-4 p-4">
+            <div className="relative flex flex-wrap items-center gap-4 p-4">
               {ClassIcon && <GlyphTile icon={ClassIcon} size="lg" />}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
@@ -408,13 +682,26 @@ export function IncidentDetailPanel({ id }: { id: string }) {
                   <PriorityMark priority={inc.priority} />
                 </div>
               </div>
+              {/* elapsed mission clock — the record's heartbeat */}
+              <div className="ml-auto shrink-0 text-right">
+                <div
+                  className={cn(
+                    "font-display text-[26px] font-black tabular-nums leading-none tracking-[0.04em]",
+                    inc.status === "active"
+                      ? "text-glow text-flame"
+                      : "text-bone/80",
+                  )}
+                >
+                  {fmtElapsed(inc.reported_at)}
+                </div>
+                <div className="mt-1.5 font-mono text-[8px] uppercase tracking-[0.28em] text-ash">
+                  elapsed // {fmtClock(inc.reported_at)}
+                </div>
+              </div>
             </div>
             <div className="relative grid grid-cols-2 gap-px border-t border-flame/15 bg-flame/10 sm:grid-cols-4">
               <MetaCell icon={MapPin} label="Address" className="col-span-2">
                 {inc.address || "—"}
-              </MetaCell>
-              <MetaCell icon={Clock} label="Reported">
-                {fmtClock(inc.reported_at)} {"//"} {fmtAgo(inc.reported_at)}
               </MetaCell>
               <MetaCell icon={Flag} label="Resolved">
                 {inc.resolved_at
@@ -434,7 +721,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
                 <MetaCell
                   icon={NotebookPen}
                   label="Notes"
-                  className="col-span-2 sm:col-span-3"
+                  className="col-span-2 sm:col-span-4"
                 >
                   <span className="normal-case tracking-normal">
                     {inc.notes}
@@ -444,29 +731,32 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             </div>
           </div>
 
-          {/* on-scene weather */}
+          {/* scene picture — AO plot + WX console side by side */}
           <section className="space-y-2.5">
-            <SectionHead icon={Wind} label="On-scene weather" />
-            <WeatherStrip
-              wind={inc.wind || "—"}
-              windDir={inc.wind_dir || undefined}
-              temp={inc.temp_c != null ? `${Math.round(inc.temp_c)}°C` : "—"}
-              humidity={
-                inc.humidity_pct != null ? `${Math.round(inc.humidity_pct)}%` : "—"
-              }
-              precip={inc.precip || "—"}
-            />
+            <SectionHead icon={Crosshair} label="Scene picture" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="border border-flame/15 bg-ink/60">
+                <SectorScope
+                  blips={unitBlips}
+                  center={{ lat: inc.lat, lng: inc.lng, label: "IC" }}
+                  anchor
+                  vectors
+                  className="h-44"
+                />
+              </div>
+              <WxConsole inc={inc} />
+            </div>
           </section>
 
-          {/* responding units */}
-          <section className="space-y-2.5">
+          {/* responding units — apparatus silhouettes, not cards */}
+          <section className="space-y-1">
             <SectionHead
               icon={Truck}
               label="Responding units"
               count={inc.vehicles.length}
             />
             {inc.vehicles.length > 0 ? (
-              <div className="space-y-1.5">
+              <div>
                 {inc.vehicles.map((v) => (
                   <UnitRow key={v.id} v={v} />
                 ))}
@@ -476,26 +766,17 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             )}
           </section>
 
-          {/* crew */}
-          <section className="space-y-2.5">
+          {/* crew — vitals strips, hearts beat at real bpm */}
+          <section className="space-y-1">
             <SectionHead
               icon={Users}
               label="Crew on incident"
               count={inc.personnel.length}
             />
             {inc.personnel.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
+              <div>
                 {inc.personnel.map((p) => (
-                  <CrewChip
-                    key={p.id}
-                    member={{
-                      name: p.name,
-                      role: `${p.rank} ${p.role}`,
-                      status: p.status.replace(/_/g, " "),
-                      onDuty:
-                        p.status !== "off_duty" && p.status !== "resting",
-                    }}
-                  />
+                  <VitalRow key={p.id} p={p} />
                 ))}
               </div>
             ) : (
@@ -503,7 +784,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             )}
           </section>
 
-          {/* calls */}
+          {/* calls — the wire, voice-prints not cards */}
           <section className="space-y-2.5">
             <SectionHead
               icon={Phone}
@@ -511,33 +792,15 @@ export function IncidentDetailPanel({ id }: { id: string }) {
               count={inc.calls.length}
             />
             {inc.calls.length > 0 ? (
-              <div className="space-y-4">
-                {inc.calls.map((c) => (
-                  <CallCard
-                    key={c.id}
-                    call={{
-                      caller: c.caller_name?.trim() || "Unknown caller",
-                      number: c.caller_number || "—",
-                      duration:
-                        c.duration_s != null
-                          ? fmtDuration(c.duration_s)
-                          : c.live
-                            ? "LIVE"
-                            : "—",
-                      transcript:
-                        c.transcript || c.summary || "Transcript pending…",
-                      extracted: asStringList(c.extracted),
-                      live: Boolean(c.live),
-                    }}
-                  />
-                ))}
+              <div className="-mx-4 border-y border-flame/10">
+                <CallWire calls={inc.calls} extracted={asStringList} />
               </div>
             ) : (
               <EmptyLine text="No calls linked to this incident" />
             )}
           </section>
 
-          {/* dispatches */}
+          {/* dispatches — perforated order tickets */}
           <section className="space-y-2.5">
             <SectionHead
               icon={Send}
@@ -547,7 +810,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             {inc.dispatches.length > 0 ? (
               <div className="space-y-1.5">
                 {inc.dispatches.map((d) => (
-                  <DispatchRow
+                  <DispatchTicket
                     key={d.id}
                     d={d}
                     acting={acting}
@@ -560,7 +823,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             )}
           </section>
 
-          {/* external contacts — real operator contact records */}
+          {/* external contacts — service glyph keys + stamped record */}
           <section className="space-y-2.5">
             <SectionHead
               icon={PhoneOutgoing}
@@ -617,7 +880,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             )}
           </section>
 
-          {/* event log */}
+          {/* event log — typed glyph nodes on the rail */}
           <section className="space-y-2.5">
             <SectionHead
               icon={History}

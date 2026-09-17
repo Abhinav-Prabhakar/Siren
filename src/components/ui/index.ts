@@ -4,6 +4,7 @@ export * from "./bar-chart";
 export * from "./button";
 export * from "./call-card";
 export * from "./checkbox";
+export * from "./compass";
 export * from "./crew-chip";
 export * from "./divider";
 export * from "./incident-card";

@@ -24,7 +24,11 @@ import {
 import { usePolling } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
 import { IncidentDetailPanel } from "@/components/incidents/incident-detail";
-import { IncidentLogCard } from "@/components/incidents/incident-log-card";
+import { IncidentTape } from "@/components/incidents/incident-tape";
+import {
+  SectorScope,
+  type ScopeBlip,
+} from "@/components/incidents/sector-scope";
 
 const POLL_MS = 4000;
 
@@ -40,6 +44,13 @@ const PRIORITY_RANK: Record<IncidentPriority, number> = {
   P2: 1,
   P3: 2,
   P4: 3,
+};
+
+const PRIORITY_BAR: Record<IncidentPriority, string> = {
+  P1: "bg-flame shadow-[0_0_5px_rgb(255_46_46/0.7)]",
+  P2: "bg-blaze",
+  P3: "bg-bone/50",
+  P4: "bg-ash/40",
 };
 
 const toneToLed: Record<BadgeTone, LedTone> = {
@@ -58,13 +69,41 @@ function byUrgency(a: Incident, b: Incident): number {
   );
 }
 
+/** Priority mix of the whole board — one mini bar per grade. */
+function PrioritySpectrum({ incidents }: { incidents: Incident[] }) {
+  const counts = (["P1", "P2", "P3", "P4"] as const).map((p) => ({
+    p,
+    n: incidents.filter((i) => i.priority === p).length,
+  }));
+  const max = Math.max(...counts.map((c) => c.n), 1);
+  return (
+    <span
+      className="flex items-end gap-1"
+      title="incidents by priority grade"
+    >
+      {counts.map(({ p, n }) => (
+        <span key={p} className="flex flex-col items-center gap-[3px]">
+          <span
+            className={cn("w-1.5", PRIORITY_BAR[p], n === 0 && "opacity-15")}
+            style={{ height: `${n > 0 ? 4 + (n / max) * 14 : 2}px` }}
+          />
+          <span className="font-mono text-[6px] leading-none tracking-[0.05em] text-ash/70">
+            {p}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function IncidentsSkeleton() {
   return (
     <div className="grid gap-6 xl:grid-cols-12">
       <div className="space-y-4 xl:col-span-5">
+        <Skeleton className="h-56" />
         <Skeleton className="h-11" />
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-44" />
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-16" />
         ))}
       </div>
       <div className="xl:col-span-7">
@@ -79,6 +118,7 @@ export default function IncidentsPage() {
     api.incidents,
     POLL_MS,
   );
+  const overview = usePolling(api.overview, 8000);
   const incidents = data ?? [];
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -96,6 +136,19 @@ export default function IncidentsPage() {
   const filtered = incidents
     .filter((i) => statusFilter === "all" || i.status === statusFilter)
     .sort(byUrgency);
+
+  // sector scope mirrors the filtered tape — blips keyed to the same rows
+  const blips: ScopeBlip[] = filtered.map((i) => ({
+    id: i.id,
+    lat: i.lat,
+    lng: i.lng,
+    tone: statusTone(i.priority),
+    pulse: i.status === "active",
+    hollow: i.status === "resolved",
+    selected: selected === i.id,
+    label: selected === i.id ? i.id : undefined,
+  }));
+  const station = overview.data?.station ?? null;
 
   const tabs: TabItem[] = [
     { id: "all", label: "All", count: incidents.length, led: "flame" },
@@ -116,11 +169,16 @@ export default function IncidentsPage() {
           sub="Event log & response // STA-01"
           back={{ href: "/", label: "Control room" }}
           status={
-            <Badge tone={error && !data ? "dead" : active > 0 ? "hot" : "cold"}>
-              {error && !data
-                ? "Link down"
-                : `${incidents.length} incidents // ${active} active`}
-            </Badge>
+            <span className="flex items-center gap-4">
+              {incidents.length > 0 && (
+                <PrioritySpectrum incidents={incidents} />
+              )}
+              <Badge tone={error && !data ? "dead" : active > 0 ? "hot" : "cold"}>
+                {error && !data
+                  ? "Link down"
+                  : `${incidents.length} incidents // ${active} active`}
+              </Badge>
+            </span>
           }
           actions={
             <Button variant="outline" size="sm" led="on" onClick={refresh}>
@@ -144,63 +202,54 @@ export default function IncidentsPage() {
           <IncidentsSkeleton />
         ) : (
           <div className="grid gap-6 xl:grid-cols-12">
-            {/* master — incident log */}
+            {/* master — sector scope over the log tape */}
             <div className="xl:col-span-5">
               <Panel
-                title="Incident log"
+                title="Incident board"
                 led={active > 0 ? "pulse" : "on"}
                 right={`${filtered.length}/${incidents.length} records`}
                 bodyClassName="p-0"
               >
-                <div className="border-b border-flame/20">
-                  <Tabs
-                    tabs={tabs}
-                    activeId={statusFilter}
-                    onChange={setStatusFilter}
-                    className="border-b-0"
+                <div className="border-b border-flame/15">
+                  <SectorScope
+                    blips={blips}
+                    center={
+                      station
+                        ? {
+                            lat: station.lat,
+                            lng: station.lng,
+                            label: station.code,
+                          }
+                        : null
+                    }
+                    onSelect={setPicked}
+                    className="h-56"
                   />
                 </div>
-                <div className="max-h-[860px] space-y-4 overflow-y-auto p-4">
-                  {filtered.length > 0 ? (
-                    filtered.map((inc) => (
-                      <div
-                        key={inc.id}
-                        role="button"
-                        tabIndex={0}
-                        aria-pressed={selected === inc.id}
-                        onClick={() => setPicked(inc.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setPicked(inc.id);
-                          }
-                        }}
-                        className={cn(
-                          "cursor-pointer transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flame",
-                          selected === inc.id &&
-                            "ring-1 ring-flame/70 shadow-[0_0_24px_-6px_rgb(255_46_46/0.6)]",
-                        )}
-                      >
-                        <IncidentLogCard
-                          incident={inc}
-                          selected={selected === inc.id}
-                        />
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex h-32 items-center justify-center font-mono text-[10px] uppercase tracking-[0.3em] text-ash/60">
-                      {statusFilter === "all"
-                        ? "no incidents on record //"
-                        : `no ${statusFilter.replace(/_/g, " ")} incidents in this state //`}
-                    </div>
-                  )}
+                <Tabs
+                  tabs={tabs}
+                  activeId={statusFilter}
+                  onChange={setStatusFilter}
+                  className="border-b-0"
+                />
+                <div className="max-h-[600px] overflow-y-auto border-t border-flame/15">
+                  <IncidentTape
+                    incidents={filtered}
+                    selectedId={selected}
+                    onSelect={setPicked}
+                    emptyText={
+                      statusFilter === "all"
+                        ? "no incidents on record"
+                        : `no ${statusFilter.replace(/_/g, " ")} incidents in this state`
+                    }
+                  />
                 </div>
               </Panel>
             </div>
 
             {/* detail — live incident record */}
             <div className="xl:col-span-7">
-              <div className="xl:sticky xl:top-20">
+              <div className="sticky xl:top-20">
                 {selected ? (
                   <IncidentDetailPanel key={selected} id={selected} />
                 ) : (

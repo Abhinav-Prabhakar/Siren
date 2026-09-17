@@ -4,10 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Led } from "@/components/ui/led";
-import { API_URL, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-const API_HOST = API_URL.replace(/^https?:\/\//, "");
 
 const LINKS = [
   { href: "/", label: "Control room" },
@@ -16,24 +14,6 @@ const LINKS = [
   { href: "/presentation", label: "Deck" },
   { href: "/components", label: "Design sys" },
 ];
-
-function Clock() {
-  const [now, setNow] = useState<string>("--:--:--");
-  useEffect(() => {
-    const update = () =>
-      setNow(
-        new Date().toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-      );
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, []);
-  return <span className="tabular-nums text-bone/80">{now}</span>;
-}
 
 /** Persistent control-room top bar — sharp, red-on-black, zero radius. */
 export function ConsoleNav() {
@@ -106,16 +86,17 @@ export function ConsoleNav() {
         </nav>
 
         <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
-          <span className="hidden items-center gap-2 lg:flex">
+          <span
+            className="flex items-center gap-2"
+            title={apiUp === false ? "API link down" : "API link live"}
+          >
             <Led
               tone={apiUp === false ? "off" : "blaze"}
               size="sm"
               pulse={apiUp !== false}
             />
-            api {API_HOST}
             {apiUp === false && <span className="text-flame">down</span>}
           </span>
-          <Clock />
         </div>
       </div>
     </header>

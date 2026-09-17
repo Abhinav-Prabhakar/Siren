@@ -1,32 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Truck, Warehouse, Waypoints, type LucideIcon } from "lucide-react";
+import { Truck } from "lucide-react";
 import { Led, Skeleton } from "@/components/ui";
-import { cn } from "@/lib/utils";
 import { fmtAgo, fmtClock, type Vehicle } from "@/lib/api";
 import { VehicleDetailModal } from "@/components/vehicles/vehicle-detail-modal";
 import type { Feed } from "./sidebar";
 import { DockCell, fmtFree, fmtPos, InspectorDock } from "./rows";
 import { STATUS_SHORT, TYPE_ICON } from "./vehicle-shared";
-import { VehicleBay } from "./vehicle-bay";
 import { VehicleGauges } from "./vehicle-gauges";
-import { VehicleSpine } from "./vehicle-spine";
 
-/** Dock idle summary groups — same buckets the spine uses. */
+/** Dock idle summary groups. */
 const GROUPS: { label: string; statuses: Vehicle["status"][] }[] = [
   { label: "Committed", statuses: ["dispatched", "en_route", "on_scene"] },
   { label: "Ready", statuses: ["available"] },
   { label: "Return / refuel", statuses: ["returning", "refuel"] },
   { label: "Out of service", statuses: ["out_of_service"] },
-];
-
-type FleetView = "spine" | "bay" | "gauges";
-
-const VIEWS: { id: FleetView; Icon: LucideIcon; label: string }[] = [
-  { id: "spine", Icon: Waypoints, label: "spine" },
-  { id: "bay", Icon: Warehouse, label: "bay" },
-  { id: "gauges", Icon: Truck, label: "gauge" },
 ];
 
 function VehicleInspector({
@@ -84,75 +73,46 @@ function VehicleInspector({
 }
 
 /**
- * The fleet manifest — three renderings of the same data, switched by
- * the icon row: dispatch spine (transit map), apparatus bay (floor
- * plan), silhouette gauges (vehicle-as-meter). Hover docks detail,
- * click opens the unit record.
+ * The fleet manifest — every unit drawn as an apparatus silhouette
+ * whose interior fill is the fuel level. Hover docks detail, click
+ * opens the unit record.
  */
 export function VehiclesList({ feed }: { feed: Feed<Vehicle> }) {
   const { data, error, loading } = feed;
-  const [view, setView] = useState<FleetView>("spine");
   const [selected, setSelected] = useState<string | null>(null);
   const [inspected, setInspected] = useState<Vehicle | null>(null);
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* view switcher */}
-      <div className="flex shrink-0 items-center justify-end gap-1 border-b border-flame/15 px-3 py-1.5">
-        {VIEWS.map(({ id, Icon, label }) => (
-          <button
-            key={id}
-            type="button"
-            aria-pressed={view === id}
-            onClick={() => setView(id)}
-            className={cn(
-              "flex cursor-pointer items-center gap-1.5 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.2em] transition-colors",
-              view === id
-                ? "bg-flame/10 text-flame"
-                : "text-ash hover:text-bone",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </button>
+  let body;
+  if (data === null && loading) {
+    body = (
+      <div className="space-y-2 p-4">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-12 w-full" />
         ))}
       </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-        {data === null && loading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : data === null ? (
-          <div className="flex items-center gap-3 px-4 py-6">
-            <Led tone="off" size="sm" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
-              {error ?? "Fleet feed down"}
-            </span>
-          </div>
-        ) : view === "spine" ? (
-          <VehicleSpine
-            vehicles={data}
-            onSelect={setSelected}
-            onHover={setInspected}
-          />
-        ) : view === "bay" ? (
-          <VehicleBay
-            vehicles={data}
-            onSelect={setSelected}
-            onHover={setInspected}
-          />
-        ) : (
-          <VehicleGauges
-            vehicles={data}
-            onSelect={setSelected}
-            onHover={setInspected}
-          />
-        )}
+    );
+  } else if (data === null) {
+    body = (
+      <div className="flex items-center gap-3 px-4 py-6">
+        <Led tone="off" size="sm" />
+        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+          {error ?? "Fleet feed down"}
+        </span>
       </div>
+    );
+  } else {
+    body = (
+      <VehicleGauges
+        vehicles={data}
+        onSelect={setSelected}
+        onHover={setInspected}
+      />
+    );
+  }
 
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">{body}</div>
       <VehicleInspector v={inspected} all={data} />
       {selected && (
         <VehicleDetailModal id={selected} onClose={() => setSelected(null)} />

@@ -86,9 +86,6 @@ export function ReadinessBar({
         </span>
       ) : (
         <>
-          <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-flame/80">
-            ready
-          </span>
           <ReadyGroup
             Icon={Truck}
             label="fleet"

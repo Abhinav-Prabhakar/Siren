@@ -37,20 +37,3 @@ export function placeOf(v: Vehicle): string {
   if (v.status === "out_of_service") return "dark";
   return "in transit";
 }
-
-/** Home = parked in the bay; rolling = out on the road. */
-export function isHome(v: Vehicle): boolean {
-  return (
-    v.status === "available" ||
-    v.status === "refuel" ||
-    v.status === "out_of_service"
-  );
-}
-
-export const ROLLING: readonly VehicleStatus[] = [
-  "dispatched",
-  "en_route",
-  "on_scene",
-];
-
-export const RETURNING: readonly VehicleStatus[] = ["returning"];

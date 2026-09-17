@@ -3,19 +3,19 @@
 import { useState } from "react";
 import { Truck } from "lucide-react";
 import { Led, Skeleton } from "@/components/ui";
-import { fmtClock, type Incident, type Vehicle } from "@/lib/api";
+import { fmtAgo, fmtClock, type Incident, type Vehicle } from "@/lib/api";
 import { VehicleDetailModal } from "@/components/vehicles/vehicle-detail-modal";
 import type { Feed } from "./sidebar";
-import { DockCell, fmtFree, InspectorDock } from "./rows";
+import { DockCell, fmtFree, fmtPos, InspectorDock } from "./rows";
 import { STATUS_SHORT, TYPE_ICON } from "./vehicle-shared";
 import { VehicleGauges } from "./vehicle-gauges";
 
 /** Dock idle summary groups. */
 const GROUPS: { label: string; statuses: Vehicle["status"][] }[] = [
-  { label: "committed", statuses: ["dispatched", "en_route", "on_scene"] },
-  { label: "ready", statuses: ["available"] },
-  { label: "returning", statuses: ["returning", "refuel"] },
-  { label: "oos", statuses: ["out_of_service"] },
+  { label: "Committed", statuses: ["dispatched", "en_route", "on_scene"] },
+  { label: "Ready", statuses: ["available"] },
+  { label: "Return / refuel", statuses: ["returning", "refuel"] },
+  { label: "Out of service", statuses: ["out_of_service"] },
 ];
 
 function VehicleInspector({
@@ -51,16 +51,20 @@ function VehicleInspector({
             {STATUS_SHORT[v.status]}
             {v.incident_id !== null && ` · ${v.incident_id}`}
           </DockCell>
-          <DockCell label="Free">
+          <DockCell label="Next free">
             {v.free_at !== null
               ? `${fmtFree(v.free_at)} · ${fmtClock(v.free_at)}`
               : "—"}
           </DockCell>
+          <DockCell label="Position">{fmtPos(v.lat, v.lng)}</DockCell>
           <DockCell label="Speed">
             {v.speed_kmh > 0 ? `${Math.round(v.speed_kmh)} km/h` : "parked"}
           </DockCell>
           <DockCell label="Fuel / water">
             {Math.round(v.fuel_pct)}% · {Math.round(v.water_pct)}%
+          </DockCell>
+          <DockCell label="Battery">
+            {v.battery_v.toFixed(1)}v · upd {fmtAgo(v.updated_at)}
           </DockCell>
         </>
       )}

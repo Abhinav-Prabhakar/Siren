@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from db import get_conn, now_iso
 
 STA = "STA-01"
-BASE_LAT, BASE_LNG = 40.7208, -73.9955  # station position
+BASE_LAT, BASE_LNG = 17.3850, 78.4867  # station position — Abids, Hyderabad
 
 
 def _ago(minutes: float = 0, hours: float = 0) -> str:
@@ -32,7 +32,7 @@ def _seed(conn) -> None:
     # ---- station ---------------------------------------------------------
     conn.execute(
         "INSERT INTO stations(id,name,code,address,lat,lng) VALUES(?,?,?,?,?,?)",
-        (STA, "Siren Central", "SC-01", "1 Ember Way, Harbor District", BASE_LAT, BASE_LNG),
+        (STA, "Siren Central", "SC-01", "1 Ember Way, Abids, Hyderabad", BASE_LAT, BASE_LNG),
     )
 
     # ---- vehicles (8, one per type) --------------------------------------
@@ -224,7 +224,7 @@ def _seed(conn) -> None:
         (170, "UNIT",     "Squad 1 cleared weekly equipment inspection.", "ash"),
         (150, "TELEMETRY","Hazmat 1 fuel at 95% — nominal.", "ash"),
         (140, "UNIT",     "Medic 1 restocked trauma kit after morning call.", "bone"),
-        (125, "CALL",     "Incoming call — medical assist, 44 Foundry Row.", "bone"),
+        (125, "CALL",     "Incoming call — smoke reported in kitchen, 44 Foundry Row.", "bone"),
         (122, "INCIDENT", "INC-003 opened: kitchen fire, 44 Foundry Row.", "bone"),
         (120, "DISPATCH", "Dispatch approved: Squad 1 to INC-003.", "bone"),
         (118, "UNIT",     "Squad 1 en route to INC-003.", "bone"),

@@ -43,6 +43,7 @@ import {
   Panel,
   Skeleton,
   Timeline,
+  Tip,
   windDeg,
   type TimelineItem,
 } from "@/components/ui";
@@ -314,14 +315,14 @@ function UnitRow({ v }: { v: IncidentDetail["vehicles"][number] }) {
   return (
     <div className="flex items-center gap-3.5 border-b border-flame/10 py-2 last:border-b-0">
       <Silhouette v={v} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2.5">
-          <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-bone">
-            {v.callsign}
-          </span>
-          <span className="truncate text-[11px] text-bone/60">{v.name}</span>
-        </div>
-      </div>
+      <Tip
+        content={`${v.name} // ${v.type.replace(/_/g, " ")}`}
+        className="min-w-0 flex-1"
+      >
+        <span className="block truncate font-mono text-[11px] font-semibold tracking-[0.1em] text-bone">
+          {v.callsign}
+        </span>
+      </Tip>
       <span className="hidden shrink-0 items-center gap-1.5 font-mono text-[10px] tracking-wider text-bone/75 sm:flex">
         <Gauge aria-hidden className="h-3 w-3 text-ash" />
         {Math.round(v.speed_kmh)} km/h
@@ -345,16 +346,18 @@ function VitalRow({ p }: { p: IncidentDetail["personnel"][number] }) {
   const low = scba < 25;
   const segs = Math.round(scba / 10);
   return (
-    <div className="flex items-center gap-3.5 border-b border-flame/10 py-2.5 last:border-b-0">
-      <Heart
-        aria-hidden
-        fill="currentColor"
-        className={cn(
-          "animate-heartbeat h-4 w-4 shrink-0",
-          bpm > 160 ? "text-flame" : "text-flame/75",
-        )}
-        style={{ animationDuration: `${60 / Math.max(bpm, 40)}s` }}
-      />
+    <div className="flex items-center gap-3.5 border-b border-flame/10 py-2 last:border-b-0">
+      <Tip content={`${bpm} bpm`} className="shrink-0">
+        <Heart
+          aria-hidden
+          fill="currentColor"
+          className={cn(
+            "animate-heartbeat h-4 w-4",
+            bpm > 160 ? "text-flame" : "text-flame/75",
+          )}
+          style={{ animationDuration: `${60 / Math.max(bpm, 40)}s` }}
+        />
+      </Tip>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2.5">
           <span className="font-display text-[12px] font-bold uppercase tracking-[0.1em] text-bone">
@@ -365,13 +368,7 @@ function VitalRow({ p }: { p: IncidentDetail["personnel"][number] }) {
           </span>
         </div>
       </div>
-      <span className="hidden shrink-0 font-mono text-[10px] tabular-nums text-bone/70 sm:block">
-        {bpm}
-      </span>
-      <span
-        className="flex shrink-0 items-center gap-1.5"
-        title={`scba ${Math.round(scba)}%`}
-      >
+      <Tip content={`scba ${Math.round(scba)}%`} className="shrink-0">
         <span className="flex gap-[2px]">
           {Array.from({ length: 10 }, (_, i) => (
             <span
@@ -388,10 +385,7 @@ function VitalRow({ p }: { p: IncidentDetail["personnel"][number] }) {
             />
           ))}
         </span>
-        <span className="font-mono text-[10px] tabular-nums text-bone/70">
-          {Math.round(scba)}%
-        </span>
-      </span>
+      </Tip>
       <Led
         tone={toneToLed(statusTone(p.status))}
         size="sm"
@@ -444,9 +438,14 @@ function DispatchTicket({
 
       <div className="min-w-0 flex-1 px-3 py-2.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-bone">
-            {d.id}
-          </span>
+          <Tip
+            content={`by ${d.proposed_by} // ${d.decided_at ? `decided ${fmtClock(d.decided_at)}` : `filed ${fmtClock(d.created_at)}`}`}
+            side="bottom"
+          >
+            <span className="font-mono text-[11px] font-semibold tracking-[0.1em] text-bone">
+              {d.id}
+            </span>
+          </Tip>
           <span
             className={cn(
               "border px-1.5 py-px font-mono text-[8px] font-bold uppercase tracking-[0.25em]",
@@ -455,59 +454,54 @@ function DispatchTicket({
           >
             {d.status}
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-            by {d.proposed_by}
-          </span>
+          {d.notes && (
+            <Tip
+              side="bottom"
+              content={
+                <span className="normal-case tracking-normal">{d.notes}</span>
+              }
+            >
+              <NotebookPen
+                aria-hidden
+                className="h-3 w-3 text-ash/70 transition-colors hover:text-bone"
+              />
+            </Tip>
+          )}
           <span className="ml-auto flex items-center gap-3 font-mono text-[10px] text-bone/70">
             <span className="flex items-center gap-1" title="vehicles">
-              <Truck aria-hidden className="h-3 w-3 text-flame/70" />
+              <Truck aria-hidden className="h-3 w-3 text-ash" />
               {d.vehicle_ids.length}
             </span>
             <span className="flex items-center gap-1" title="personnel">
-              <Users aria-hidden className="h-3 w-3 text-flame/70" />
+              <Users aria-hidden className="h-3 w-3 text-ash" />
               {d.personnel_ids.length}
             </span>
             <span className="flex items-center gap-1" title="equipment">
-              <Package aria-hidden className="h-3 w-3 text-flame/70" />
+              <Package aria-hidden className="h-3 w-3 text-ash" />
               {d.equipment_ids.length}
             </span>
           </span>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-            {d.decided_at ? (
-              <Flag aria-hidden className="h-3 w-3" />
-            ) : (
-              <Clock aria-hidden className="h-3 w-3" />
-            )}
-            {fmtClock(d.decided_at ?? d.created_at)}
-          </span>
-          {d.notes ? (
-            <span className="truncate font-mono text-[9px] uppercase tracking-[0.15em] text-ash/80">
-              {d.notes}
-            </span>
-          ) : null}
-          {pending && (
-            <span className="ml-auto inline-flex gap-2">
-              <Button
-                variant="solid"
-                size="sm"
-                disabled={acting !== null}
-                onClick={() => onDecide(d, "approve")}
-              >
-                {acting === `${d.id}:approve` ? "…" : "Approve"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={acting !== null}
-                onClick={() => onDecide(d, "reject")}
-              >
-                {acting === `${d.id}:reject` ? "…" : "Reject"}
-              </Button>
-            </span>
-          )}
-        </div>
+        {pending && (
+          <div className="mt-1.5 flex justify-end gap-2">
+            <Button
+              variant="solid"
+              size="sm"
+              disabled={acting !== null}
+              onClick={() => onDecide(d, "approve")}
+            >
+              {acting === `${d.id}:approve` ? "…" : "Approve"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={acting !== null}
+              onClick={() => onDecide(d, "reject")}
+            >
+              {acting === `${d.id}:reject` ? "…" : "Reject"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -640,46 +634,60 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             </Alert>
           )}
 
-          {/* readout line — icon fields, no cells */}
+          {/* readout line — address + report clock inline; coords, closed
+              state and notes ride on hover icons */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 font-mono text-[10px] tracking-[0.12em] text-bone/70">
             <span className="flex min-w-0 items-center gap-1.5">
-              <MapPin aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+              <MapPin aria-hidden className="h-3 w-3 shrink-0 text-ash" />
               <span className="truncate">{inc.address || "—"}</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <Clock aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
+              <Clock aria-hidden className="h-3 w-3 shrink-0 text-ash" />
               {fmtClock(inc.reported_at)}
             </span>
-            <span className="flex items-center gap-1.5">
-              <Flag aria-hidden className="h-3 w-3 shrink-0 text-flame/70" />
-              {inc.resolved_at ? fmtClock(inc.resolved_at) : "open"}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Navigation
-                aria-hidden
-                className="h-3 w-3 shrink-0 text-flame/70"
-              />
-              {inc.lat != null && inc.lng != null
-                ? `${inc.lat.toFixed(4)} / ${inc.lng.toFixed(4)}`
-                : "—"}
-            </span>
-            {inc.notes ? (
-              <span className="flex min-w-0 items-center gap-1.5">
+            {inc.lat != null && inc.lng != null && (
+              <Tip
+                content={`${inc.lat.toFixed(4)} / ${inc.lng.toFixed(4)}`}
+                side="bottom"
+              >
+                <Navigation
+                  aria-hidden
+                  className="h-3 w-3 text-ash/70 transition-colors hover:text-bone"
+                />
+              </Tip>
+            )}
+            {inc.resolved_at && (
+              <Tip
+                content={`closed ${fmtClock(inc.resolved_at)}`}
+                side="bottom"
+              >
+                <Flag
+                  aria-hidden
+                  className="h-3 w-3 text-ash/70 transition-colors hover:text-bone"
+                />
+              </Tip>
+            )}
+            {inc.notes && (
+              <Tip
+                side="bottom"
+                content={
+                  <span className="normal-case tracking-normal">
+                    {inc.notes}
+                  </span>
+                }
+              >
                 <NotebookPen
                   aria-hidden
-                  className="h-3 w-3 shrink-0 text-flame/70"
+                  className="h-3 w-3 text-ash/70 transition-colors hover:text-bone"
                 />
-                <span className="truncate normal-case tracking-normal text-bone/60">
-                  {inc.notes}
-                </span>
-              </span>
-            ) : null}
+              </Tip>
+            )}
           </div>
 
           {/* scene picture — AO plot + WX console in one instrument */}
-          <section className="space-y-2.5">
+          <section className="space-y-2.5 border-t border-flame/10 pt-4">
             <SectionHead icon={Crosshair} label="Scene" />
-            <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-flame/10">
+            <div className="grid border border-flame/10 sm:grid-cols-2 sm:divide-x sm:divide-flame/10">
               <SectorScope
                 blips={unitBlips}
                 center={{ lat: inc.lat, lng: inc.lng, label: "IC" }}
@@ -692,7 +700,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
           </section>
 
           {/* response — machines left, humans right */}
-          <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+          <div className="grid gap-x-8 gap-y-6 border-t border-flame/10 pt-4 sm:grid-cols-2">
             <section className="space-y-1">
               <SectionHead
                 icon={Truck}
@@ -730,7 +738,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
           </div>
 
           {/* dispatches — perforated order tickets */}
-          <section className="space-y-2.5">
+          <section className="space-y-2.5 border-t border-flame/10 pt-4">
             <SectionHead
               icon={Send}
               label="Dispatches"
@@ -753,7 +761,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
           </section>
 
           {/* comms — the wire left, outbound contacts right */}
-          <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+          <div className="grid gap-x-8 gap-y-6 border-t border-flame/10 pt-4 sm:grid-cols-2">
             <section className="space-y-2.5">
               <SectionHead
                 icon={Phone}
@@ -823,7 +831,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
           </div>
 
           {/* event log — typed glyph nodes on the rail */}
-          <section className="space-y-2.5">
+          <section className="space-y-2.5 border-t border-flame/10 pt-4">
             <SectionHead
               icon={History}
               label="Log"

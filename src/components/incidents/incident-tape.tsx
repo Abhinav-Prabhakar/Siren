@@ -1,6 +1,7 @@
 import { MapPin } from "lucide-react";
 import type { BadgeTone } from "@/components/ui";
 import {
+  fmtClock,
   fmtElapsed,
   statusTone,
   type Incident,
@@ -33,10 +34,10 @@ const GLYPH_TONE: Record<BadgeTone, string> = {
 
 /**
  * The incident log as ticker tape — hairline rows, not cards. Each row is a
- * scan of one incident: severity bars, classification glyph, T+ mission
- * clock, and a compact metric cluster (calls, units, wind vector).
- * Status does the visual work: active rows glow and pulse, resolved rows
- * sink to half-dim. Clicking a row arms the detail record.
+ * single scan line: severity bars, classification glyph, T+ mission clock.
+ * Id, counts and report time ride on the row's hover title. Status does the
+ * visual work: active rows glow and pulse, resolved rows sink to half-dim.
+ * Clicking a row arms the detail record.
  */
 export function IncidentTape({
   incidents,
@@ -78,9 +79,10 @@ export function IncidentTape({
             key={inc.id}
             type="button"
             aria-pressed={selected}
+            title={`${inc.id} // ${inc.status.replace(/_/g, " ")} // reported ${fmtClock(inc.reported_at)} // ${inc.call_count ?? 0} calls · ${inc.unit_count ?? 0} units`}
             onClick={() => onSelect(inc.id)}
             className={cn(
-              "flex w-full cursor-pointer items-center gap-3.5 border-b border-flame/10 px-4 py-2.5 text-left transition-colors last:border-b-0",
+              "flex w-full cursor-pointer items-center gap-3 border-b border-flame/10 px-4 py-2 text-left transition-colors last:border-b-0",
               "hover:bg-wine/25 focus-visible:bg-wine/25 focus-visible:outline-none",
               selected && "bg-wine/35 shadow-[inset_2px_0_0_var(--color-flame)]",
               !selected && active && "bg-wine/10",
@@ -115,16 +117,20 @@ export function IncidentTape({
               )}
             />
 
-            {/* identity — classification over id + address */}
-            <span className={cn("min-w-0 flex-1", closed && "opacity-55")}>
-              <span className="block truncate font-display text-sm font-bold uppercase leading-tight tracking-[0.1em] text-bone">
+            {/* identity — classification + address on one scan line */}
+            <span
+              className={cn(
+                "flex min-w-0 flex-1 items-baseline gap-2",
+                closed && "opacity-55",
+              )}
+            >
+              <span className="truncate font-display text-[13px] font-bold uppercase tracking-[0.1em] text-bone">
                 {inc.classification || "Unclassified"}
               </span>
-              <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.15em] text-ash">
-                <span className="shrink-0 text-bone/50">{inc.id}</span>
+              <span className="flex min-w-0 items-center gap-1 truncate font-mono text-[9px] uppercase tracking-[0.15em] text-ash">
                 <MapPin
                   aria-hidden
-                  className="h-2.5 w-2.5 shrink-0 text-flame/50"
+                  className="h-2.5 w-2.5 shrink-0 text-ash/60"
                 />
                 <span className="truncate">{inc.address || "—"}</span>
               </span>

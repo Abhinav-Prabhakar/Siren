@@ -16,6 +16,7 @@ import {
   Modal,
   Panel,
   Skeleton,
+  Tip,
   type BadgeTone,
 } from "@/components/ui";
 import {
@@ -56,17 +57,35 @@ const DECIDE_ICON_CLS: Record<DispatchStatus, string> = {
   completed: "text-bone/70",
 };
 
-/** Icon-headed id run — a resource manifest read, not a label. */
+/**
+ * Icon-headed resource manifest. `compact` reads as icon + count with the
+ * id list on hover; the expanded form prints ids inline (modal detail).
+ */
 function Manifest({
   icon: Icon,
   items,
   max = 6,
+  compact = false,
 }: {
   icon: LucideIcon;
   items: string[];
   max?: number;
+  compact?: boolean;
 }) {
   if (items.length === 0) return null;
+  if (compact) {
+    return (
+      <Tip side="bottom" content={items.join("  ·  ")}>
+        <span className="flex items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70">
+          <Icon
+            aria-hidden
+            className="h-3 w-3 shrink-0 text-ash"
+          />
+          {items.length}
+        </span>
+      </Tip>
+    );
+  }
   return (
     <span className="flex min-w-0 items-baseline gap-1.5">
       <Icon
@@ -237,9 +256,9 @@ export function ApprovalsPanel({
                     </div>
 
                     <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                      <Manifest icon={Truck} items={d.vehicle_ids} />
-                      <Manifest icon={Users} items={d.personnel_ids} />
-                      <Manifest icon={Package} items={d.equipment_ids} />
+                      <Manifest icon={Truck} items={d.vehicle_ids} compact />
+                      <Manifest icon={Users} items={d.personnel_ids} compact />
+                      <Manifest icon={Package} items={d.equipment_ids} compact />
                     </div>
 
                     {d.notes && (

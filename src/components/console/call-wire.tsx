@@ -1,7 +1,8 @@
 "use client";
 
 import { Phone, PhoneCall } from "lucide-react";
-import { fmtDuration, type Call } from "@/lib/api";
+import { Tip } from "@/components/ui";
+import { fmtClock, fmtDuration, type Call } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
@@ -92,12 +93,15 @@ export function CallWire({
                 />
               )}
               <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                <span className="truncate font-display text-[11px] font-bold uppercase tracking-[0.1em] text-bone">
-                  {c.caller_name?.trim() || "Unknown caller"}
-                </span>
-                <span className="shrink-0 font-mono text-[9px] tracking-[0.15em] text-ash/70">
-                  {c.caller_number || "—"}
-                </span>
+                <Tip
+                  side="bottom"
+                  content={`${c.caller_number || "no number"} // ${fmtClock(c.started_at)}`}
+                  className="min-w-0"
+                >
+                  <span className="block truncate font-display text-[11px] font-bold uppercase tracking-[0.1em] text-bone">
+                    {c.caller_name?.trim() || "Unknown caller"}
+                  </span>
+                </Tip>
               </div>
               {live ? (
                 <EqBars />
@@ -119,7 +123,7 @@ export function CallWire({
             )}
 
             {extracted(c.extracted).length > 0 && (
-              <div className="mt-1.5 truncate font-mono text-[9px] uppercase tracking-[0.15em] text-flame/70">
+              <div className="mt-1.5 truncate font-mono text-[9px] uppercase tracking-[0.15em] text-flame/55">
                 {extracted(c.extracted).join(" · ")}
               </div>
             )}

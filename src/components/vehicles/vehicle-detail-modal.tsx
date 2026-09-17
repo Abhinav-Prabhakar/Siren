@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Activity,
   Crosshair,
   Droplets,
   FlaskConical,
@@ -29,6 +28,7 @@ import {
   type Personnel,
   type PersonnelStatus,
   type VehicleDetail,
+  type VehicleType,
 } from "@/lib/api";
 import { usePolling } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,22 @@ import { Silhouette } from "@/components/resources/vehicle-gauges";
 function batteryPct(v: number): number {
   return Math.round(Math.max(0, Math.min(100, ((v - 11.5) / 2.9) * 100)));
 }
+
+/**
+ * Suppression constants — what a pumper's tank actually holds and how
+ * fast a working attack drains it, so percentages read as endurance.
+ * Liters, metric rigs; ~550 L/min ≈ two handlines on tank water.
+ */
+const WATER_TANK_L: Partial<Record<VehicleType, number>> = {
+  pumper: 1800,
+  tender: 4500,
+  hazmat: 1000,
+  special: 500,
+  ladder: 400,
+};
+const ATTACK_LPM = 550;
+/** ~200 L diesel at heavy urban burn → km per fuel point. */
+const KM_PER_FUEL_PCT = 5.5;
 
 const SEGS = 14;
 
@@ -220,17 +236,26 @@ function KitRow({ e }: { e: Equipment }) {
 
 function DetailBody({
   v,
-  fuelSeries,
   speedSeries,
+  waterSeries,
+  pumpSeries,
   target,
 }: {
   v: VehicleDetail;
-  fuelSeries: number[];
   speedSeries: number[];
+  waterSeries: number[];
+  pumpSeries: number[];
   target: { lat: number; lng: number } | null;
 }) {
   const tone = statusTone(v.status);
   const dead = v.status === "out_of_service";
+  const rolling = v.status === "en_route" || v.status === "dispatched";
+  const tank = WATER_TANK_L[v.type];
+  const pumping = v.pump_pressure_bar > 0.5;
+  const minAir =
+    v.crew.length > 0
+      ? Math.min(...v.crew.map((p) => p.scba_pct))
+      : null;
 
   return (
     <div className={cn("space-y-5", dead && "saturate-50")}>
@@ -244,7 +269,7 @@ function DetailBody({
         </div>
         {v.free_at && (
           <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-            free {fmtClock(v.free_at)}
+            {rolling ? "eta" : "free"} {fmtClock(v.free_at)}
           </span>
         )}
       </div>
@@ -271,13 +296,21 @@ function DetailBody({
             >
               {Math.round(v.fuel_pct)}%
             </span>
+            <span className="text-ash/60">
+              {" "}· rng ~{Math.round(v.fuel_pct * KM_PER_FUEL_PCT)} km
+            </span>
           </div>
         </div>
         <div className="space-y-2.5">
           <TankBar
             icon={Droplets}
             value={v.water_pct}
-            display={`${Math.round(v.water_pct)}%`}
+            display={
+              tank !== undefined
+                ? `${Math.round((v.water_pct / 100) * tank).toLocaleString("en-US")} L`
+                : `${Math.round(v.water_pct)}%`
+            }
+            lowAt={25}
           />
           <TankBar
             icon={FlaskConical}
@@ -292,17 +325,27 @@ function DetailBody({
         </div>
       </div>
 
+      {/* suppression — pump state + how long the tank lasts at attack flow */}
+      {(tank !== undefined || pumping) && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border border-ash/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.2em]">
+          <span className={pumping ? "text-flame" : "text-ash"}>
+            pump {pumping ? `${v.pump_pressure_bar.toFixed(1)} bar` : "idle"}
+          </span>
+          {tank !== undefined && (
+            <span className="text-bone/80">
+              ≈{((v.water_pct / 100) * tank / ATTACK_LPM).toFixed(1)} min water
+              <span className="text-ash/60"> @ {ATTACK_LPM} L/min</span>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* drive line */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <Metric
           icon={Gauge}
           value={String(Math.round(v.speed_kmh))}
           unit="km/h"
-        />
-        <Metric
-          icon={Activity}
-          value={v.pump_pressure_bar.toFixed(1)}
-          unit="bar"
         />
         <Metric
           icon={Route}
@@ -317,16 +360,22 @@ function DetailBody({
         </span>
       </div>
 
-      {/* traces */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Trace label="fuel" unit="%" series={fuelSeries} />
+      {/* traces — the scene-critical telemetry */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <Trace label="speed" unit="km/h" series={speedSeries} />
+        <Trace label="water" unit="%" series={waterSeries} />
+        <Trace label="pump" unit="bar" series={pumpSeries} />
       </div>
 
-      {/* crew manifest */}
+      {/* crew manifest — air min is the accountability number */}
       <div>
         <div className="mb-2 font-mono text-[8px] uppercase tracking-[0.3em] text-ash">
           crew {"//"} {v.crew.length || "none"}
+          {minAir !== null && (
+            <span className={cn("ml-3", minAir < 30 ? "text-flame" : "text-ash/60")}>
+              air min {Math.round(minAir)}%
+            </span>
+          )}
         </div>
         {v.crew.length > 0 ? (
           <div className="flex flex-wrap gap-x-5 gap-y-2">
@@ -377,15 +426,17 @@ export function VehicleDetailModal({
     () =>
       Promise.all([
         api.vehicle(id),
-        api.telemetry("vehicle", id, "fuel_pct", 60),
         api.telemetry("vehicle", id, "speed_kmh", 60),
+        api.telemetry("vehicle", id, "water_pct", 60),
+        api.telemetry("vehicle", id, "pump_pressure_bar", 60),
       ]),
     4000,
   );
 
   const v = data?.[0] ?? null;
-  const fuelSeries = data?.[1].map((p) => p.value) ?? [];
-  const speedSeries = data?.[2].map((p) => p.value) ?? [];
+  const speedSeries = data?.[1].map((p) => p.value) ?? [];
+  const waterSeries = data?.[2].map((p) => p.value) ?? [];
+  const pumpSeries = data?.[3].map((p) => p.value) ?? [];
 
   return (
     <Modal
@@ -416,8 +467,9 @@ export function VehicleDetailModal({
           )}
           <DetailBody
             v={v}
-            fuelSeries={fuelSeries}
             speedSeries={speedSeries}
+            waterSeries={waterSeries}
+            pumpSeries={pumpSeries}
             target={targetOf(v, incidents, station)}
           />
         </div>

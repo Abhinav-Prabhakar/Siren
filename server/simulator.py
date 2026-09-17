@@ -228,7 +228,8 @@ def _tick_vehicles(conn, now: str, now_dt: datetime, tele: list, touched: set) -
              round(mileage, 2), now, v["id"]),
         )
         for metric, val in (("fuel_pct", fuel), ("water_pct", water),
-                            ("battery_v", batt), ("speed_kmh", speed)):
+                            ("battery_v", batt), ("speed_kmh", speed),
+                            ("pump_pressure_bar", pump)):
             tele.append(("vehicle", v["id"], metric, round(val, 2)))
             touched.add(("vehicle", v["id"], metric))
 

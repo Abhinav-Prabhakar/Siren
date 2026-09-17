@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useCallback, useState } from "react";
 import { ConsoleNav } from "@/components/console-nav";
-import { OpsFeed } from "@/components/console/ops-feed";
 import { PositionBoard } from "@/components/vehicles/position-board";
 import { VehicleDetailModal } from "@/components/vehicles/vehicle-detail-modal";
 import { api } from "@/lib/api";
@@ -15,8 +14,8 @@ import { ResourceSidebar, type ResourceTab } from "./sidebar";
 /**
  * Consolidated /resources view — the main page.
  *
- * Left: station readiness proportions, the live position board, the
- * cross-domain flag queue and the ops feed. Right: a fixed icon-tabbed
+ * Left: station readiness proportions, the live position board and the
+ * cross-domain flag queue. Right: a fixed icon-tabbed
  * rail (Fleet / Kit / Crew) that holds the full manifests — every row
  * opens its detail modal in place. All three feeds poll once here at
  * 4 s and are passed down. Deep-linkable via ?tab=.
@@ -72,7 +71,6 @@ export function ResourcesView({ initialTab }: { initialTab: ResourceTab }) {
             personnel={personnel}
             onSelect={setTab}
           />
-          <OpsFeed className="max-h-[220px] overflow-y-auto" />
         </main>
 
         <aside className="w-full shrink-0 self-start lg:sticky lg:top-[72px] lg:w-[380px]">

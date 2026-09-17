@@ -32,7 +32,7 @@ import {
   DISPATCH_ICON_FALLBACK,
   DISPATCH_ICONS,
 } from "@/components/incidents/incident-icons";
-import { GlyphTile, PriorityMark } from "@/components/incidents/marks";
+import { PriorityMark } from "@/components/incidents/marks";
 import {
   api,
   fmtAgo,
@@ -90,11 +90,11 @@ function asStringList(value: unknown): string[] {
   return [];
 }
 
-/** Icon-headed id chips — a resource manifest read, not a label. */
+/** Icon-headed id run — a resource manifest read, not a label. */
 function Manifest({
   icon: Icon,
   items,
-  max = 4,
+  max = 6,
 }: {
   icon: LucideIcon;
   items: string[];
@@ -102,30 +102,23 @@ function Manifest({
 }) {
   if (items.length === 0) return null;
   return (
-    <span className="flex flex-wrap items-center gap-1.5">
-      <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-flame/70" />
-      {items.slice(0, max).map((id) => (
-        <span
-          key={id}
-          className="clip-tag bg-smoke px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-bone/75 [--chamfer:4px]"
-        >
-          {id}
-        </span>
-      ))}
-      {items.length > max && (
-        <span className="font-mono text-[9px] tracking-[0.15em] text-ash">
-          +{items.length - max}
-        </span>
-      )}
+    <span className="flex min-w-0 items-baseline gap-1.5">
+      <Icon aria-hidden className="h-3 w-3 shrink-0 translate-y-px text-flame/70" />
+      <span className="truncate font-mono text-[10px] tracking-[0.12em] text-bone/70">
+        {items.slice(0, max).join(" · ")}
+        {items.length > max && (
+          <span className="text-ash"> +{items.length - max}</span>
+        )}
+      </span>
     </span>
   );
 }
 
 function PanelEmpty({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-3 border border-ash/15 bg-smoke/40 px-4 py-5">
-      <Led tone="bone" size="sm" />
-      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash">
+    <div className="flex items-center justify-center gap-2.5 py-8">
+      <Led tone="off" size="sm" />
+      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ash/70">
         {text}
       </span>
     </div>
@@ -441,7 +434,6 @@ export default function ControlRoomPage() {
               title="Pending dispatch approvals"
               led={pendingDispatches.length > 0 ? "pulse" : "off"}
               right={`${pendingDispatches.length} queued`}
-              chamfered
               bodyClassName="space-y-4"
             >
               {notice && (
@@ -472,7 +464,11 @@ export default function ControlRoomPage() {
                         <div className="min-w-0 flex-1 px-3.5 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-2.5">
-                            <GlyphTile icon={ClassIcon} size="md" />
+                            <ClassIcon
+                              aria-hidden
+                              strokeWidth={1.75}
+                              className="h-5 w-5 shrink-0 text-flame"
+                            />
                             <div className="min-w-0">
                               <div className="truncate font-display text-xs font-bold uppercase tracking-[0.12em] text-bone">
                                 {d.incident_classification ?? d.incident_id}

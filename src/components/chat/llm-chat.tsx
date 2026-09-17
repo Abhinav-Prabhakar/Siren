@@ -2,15 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import {
-  Button,
-  Divider,
-  Input,
-  Kbd,
-  Led,
-  Panel,
-  Skeleton,
-} from "@/components/ui";
+import { Led, Panel, Skeleton } from "@/components/ui";
 import { api, fmtClock, type ChatMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -39,28 +31,10 @@ function Ellipsis() {
   );
 }
 
-function AgentTag({ ts, dead }: { ts: string; dead?: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <Led tone={dead ? "off" : "blaze"} size="sm" />
-      <span
-        className={cn(
-          "font-mono text-[9px] uppercase tracking-[0.3em]",
-          dead ? "text-ash/70" : "text-flame/80",
-        )}
-      >
-        SIREN-1
-      </span>
-      <span className="font-mono text-[9px] tracking-[0.2em] text-ash/50">
-        {fmtClock(ts)}
-      </span>
-    </div>
-  );
-}
-
 /**
- * AGENT LINK // SIREN-1 — operator ⇄ dispatch-agent uplink.
- * POSTs to /api/chat/stream — tokens and tool-call records land live over SSE.
+ * AGENT LINK // SIREN-1 — operator ⇄ dispatch-agent uplink as a plain
+ * terminal feed: agent traffic carries a flame left bar, operator
+ * messages sit right-aligned. No bubbles, no nested chrome.
  */
 export function LlmChat({ className }: { className?: string }) {
   const [messages, setMessages] = useState<Line[]>([]);
@@ -185,11 +159,10 @@ export function LlmChat({ className }: { className?: string }) {
 
   return (
     <Panel
-      title="AGENT LINK // SIREN-1"
+      title="Agent link // SIREN-1"
       led="pulse"
-      chamfered
       className={className}
-      bodyClassName="flex flex-col gap-3"
+      bodyClassName="p-0"
       right={
         <span className="flex items-center gap-3">
           <button
@@ -202,144 +175,122 @@ export function LlmChat({ className }: { className?: string }) {
               purgeArmed ? "text-flame" : "text-ash/60 hover:text-bone",
             )}
           >
-            {purgeArmed ? "confirm purge?" : "purge"}
+            {purgeArmed ? "confirm?" : "purge"}
           </button>
-          <span className={cn(linkDown ? "text-ash/70" : "text-flame")}>
-            LINK {linkDown ? "// DOWN" : "// LIVE"}
+          <span className={linkDown ? "text-ash/70" : "text-flame"}>
+            {linkDown ? "down" : "live"}
           </span>
         </span>
       }
     >
-      {/* traffic buffer — newest at the bottom */}
+      {/* feed — newest at the bottom */}
       <div
         ref={scrollRef}
-        className="h-[320px] space-y-3 overflow-y-auto border border-ash/15 bg-ink/70 p-3 [scrollbar-width:thin]"
+        className="h-[340px] space-y-2.5 overflow-y-auto px-4 py-3 [scrollbar-width:thin]"
       >
         {loading ? (
           <div className="space-y-3 pt-1">
-            <Skeleton className="h-9 w-2/3" />
-            <Skeleton className="ml-auto h-9 w-1/2" />
-            <Skeleton className="h-9 w-3/5" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="ml-auto h-4 w-1/2" />
+            <Skeleton className="h-4 w-3/5" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <Led tone={linkDown ? "off" : "flame"} pulse={!linkDown} />
-            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ash">
-              link established // no traffic
-            </p>
-            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash/50">
-              {linkDown
-                ? "history sync failed — backend :8000 unreachable"
-                : "awaiting first transmission"}
-            </p>
+          <div className="flex h-full items-center justify-center gap-2.5">
+            <Led tone={linkDown ? "off" : "flame"} size="sm" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-ash">
+              {linkDown ? "link down" : "link live — no traffic"}
+            </span>
           </div>
         ) : (
-          <>
-            {messages.map((m) =>
-              m.role === "user" ? (
-                <div key={m.id} className="flex flex-col items-end gap-1">
-                  <div className="clip-tag max-w-[85%] border border-flame/40 bg-wine/70 px-3 py-2 [--chamfer:8px]">
-                    <p className="font-mono text-[11px] leading-relaxed tracking-wide text-bone">
-                      {m.content}
-                    </p>
+          messages.map((m) =>
+            m.role === "user" ? (
+              <div key={m.id} className="text-right">
+                <p className="font-mono text-[11px] leading-relaxed tracking-wide text-bone">
+                  {m.content}
+                </p>
+                <span className="font-mono text-[8px] uppercase tracking-[0.25em] text-ash/50">
+                  you · {fmtClock(m.ts)}
+                </span>
+              </div>
+            ) : (
+              <div
+                key={m.id}
+                className={cn(
+                  "border-l-2 pl-2.5",
+                  m.tone === "dead" ? "border-ash/30" : "border-flame/40",
+                )}
+              >
+                {m.tool_calls !== undefined && m.tool_calls.length > 0 && (
+                  <div className="mb-1 space-y-0.5">
+                    {m.tool_calls.map((t, i) => (
+                      <div
+                        key={`${t.name}-${i}`}
+                        className="flex items-baseline gap-2 font-mono text-[9px] uppercase tracking-[0.2em]"
+                      >
+                        <span className="shrink-0 text-blaze/90">
+                          ⚙ {t.name}
+                        </span>
+                        <span className="min-w-0 truncate text-ash/70">
+                          {t.summary}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash/50">
-                    you // {fmtClock(m.ts)}
-                  </span>
-                </div>
-              ) : (
-                <div key={m.id} className="flex flex-col items-start gap-1">
-                  <AgentTag ts={m.ts} dead={m.tone === "dead"} />
-                  <div
+                )}
+                {m.streaming && !m.content ? (
+                  <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash/70">
+                    receiving downlink
+                    <Ellipsis />
+                  </p>
+                ) : (
+                  <p
                     className={cn(
-                      "clip-tag max-w-[85%] border px-3 py-2 [--chamfer:8px]",
-                      m.tone === "dead"
-                        ? "border-ash/20 bg-smoke/40"
-                        : "border-ash/25 bg-smoke/80",
+                      "whitespace-pre-wrap font-mono text-[11px] leading-relaxed tracking-wide",
+                      m.tone === "dead" ? "text-ash" : "text-bone/85",
                     )}
                   >
-                    {m.tool_calls !== undefined &&
-                      m.tool_calls.length > 0 && (
-                        <div className="mb-1.5 space-y-1 border-b border-ash/15 pb-1.5">
-                          {m.tool_calls.map((t, i) => (
-                            <div
-                              key={`${t.name}-${i}`}
-                              className="flex items-baseline gap-2 font-mono text-[9px] uppercase tracking-[0.2em]"
-                            >
-                              <span className="shrink-0 text-flame">⚙</span>
-                              <span className="shrink-0 text-blaze/90">
-                                {t.name}
-                              </span>
-                              <span className="min-w-0 truncate text-ash/80">
-                                {t.summary}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    {m.streaming && !m.content ? (
-                      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-ash/70">
-                        receiving downlink
-                        <Ellipsis />
-                      </p>
-                    ) : (
-                      <p
-                        className={cn(
-                          "whitespace-pre-wrap font-mono text-[11px] leading-relaxed tracking-wide",
-                          m.tone === "dead" ? "text-ash" : "text-bone/85",
-                        )}
-                      >
-                        {m.content}
-                        {m.streaming && (
-                          <span className="ml-0.5 animate-pulse text-flame">
-                            ▌
-                          </span>
-                        )}
-                      </p>
+                    {m.content}
+                    {m.streaming && (
+                      <span className="ml-0.5 animate-pulse text-flame">▌</span>
                     )}
-                  </div>
-                </div>
-              ),
-            )}
-          </>
+                  </p>
+                )}
+                <span className="font-mono text-[8px] uppercase tracking-[0.25em] text-ash/50">
+                  s1 · {fmtClock(m.ts)}
+                </span>
+              </div>
+            ),
+          )
         )}
       </div>
 
-      <Divider label="uplink buffer" />
-
       {/* composer */}
-      <form onSubmit={onTransmit} className="flex items-start gap-3">
-        <div className="flex-1">
-          <Input
-            glyph="›"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={
-              pending ? "agent is responding…" : "type directive for siren-1…"
-            }
-            disabled={pending}
-            autoComplete="off"
-            aria-label="Message SIREN-1"
-          />
-        </div>
-        <Button
+      <form
+        onSubmit={onTransmit}
+        className="flex items-center gap-2.5 border-t border-flame/15 px-4 py-2.5"
+      >
+        <span aria-hidden className="font-mono text-[11px] text-flame">
+          ›
+        </span>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={
+            pending ? "agent is responding…" : "directive for siren-1"
+          }
+          disabled={pending}
+          autoComplete="off"
+          aria-label="Message SIREN-1"
+          className="min-w-0 flex-1 bg-transparent font-mono text-[11px] tracking-wide text-bone placeholder:text-ash/50 focus:outline-none disabled:opacity-50"
+        />
+        <button
           type="submit"
-          variant="solid"
-          size="sm"
-          led={pending ? "pulse" : "on"}
           disabled={pending || !draft.trim()}
+          className="shrink-0 font-mono text-[10px] uppercase tracking-[0.25em] text-flame transition-colors hover:text-blaze disabled:pointer-events-none disabled:opacity-40"
         >
-          Transmit
-        </Button>
+          send ↵
+        </button>
       </form>
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-ash/50">
-          ch-01 // secure dispatch band
-        </span>
-        <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-ash/50">
-          <Kbd className="h-5 min-w-5">↵</Kbd> send
-        </span>
-      </div>
     </Panel>
   );
 }

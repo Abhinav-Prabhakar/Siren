@@ -78,28 +78,19 @@ export function CallWire({
             )}
           >
             <div className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center border",
-                  live
-                    ? "border-flame/50 bg-wine/70 text-flame"
-                    : "border-ash/15 bg-smoke/60 text-ash/70",
-                )}
-              >
-                {live ? (
-                  <PhoneCall
-                    aria-hidden
-                    strokeWidth={2}
-                    className="h-3.5 w-3.5"
-                  />
-                ) : (
-                  <Phone
-                    aria-hidden
-                    strokeWidth={2}
-                    className="h-3.5 w-3.5"
-                  />
-                )}
-              </span>
+              {live ? (
+                <PhoneCall
+                  aria-hidden
+                  strokeWidth={2}
+                  className="h-4 w-4 shrink-0 animate-pulse text-flame"
+                />
+              ) : (
+                <Phone
+                  aria-hidden
+                  strokeWidth={2}
+                  className="h-4 w-4 shrink-0 text-ash/60"
+                />
+              )}
               <div className="flex min-w-0 flex-1 items-baseline gap-2">
                 <span className="truncate font-display text-[11px] font-bold uppercase tracking-[0.1em] text-bone">
                   {c.caller_name?.trim() || "Unknown caller"}
@@ -126,15 +117,8 @@ export function CallWire({
             </div>
 
             {extracted(c.extracted).length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {extracted(c.extracted).map((chip) => (
-                  <span
-                    key={chip}
-                    className="clip-tag bg-wine/60 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-flame [--chamfer:4px]"
-                  >
-                    {chip}
-                  </span>
-                ))}
+              <div className="mt-1.5 truncate font-mono text-[9px] uppercase tracking-[0.15em] text-flame/70">
+                {extracted(c.extracted).join(" · ")}
               </div>
             )}
           </div>

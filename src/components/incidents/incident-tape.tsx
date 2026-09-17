@@ -146,51 +146,48 @@ export function IncidentTape({
               </span>
             </span>
 
-            {/* instrument cluster — status glyph, clock, live metrics */}
-            <span className="flex shrink-0 flex-col items-end gap-1 text-right">
-              <span className="flex items-center gap-2">
-                <StatusIcon
-                  aria-hidden
-                  strokeWidth={2.25}
-                  className={cn(
-                    "h-3.5 w-3.5",
-                    toneTextClass(sTone),
-                    active && "animate-pulse",
-                  )}
-                />
-                <span
-                  className={cn(
-                    "font-mono text-[11px] font-semibold tabular-nums tracking-[0.08em]",
-                    active ? "text-flame" : "text-bone/60",
-                  )}
-                  title="elapsed since report"
-                >
-                  {fmtElapsed(inc.reported_at)}
-                </span>
+            {/* instrument cluster — one line: status, clock, metrics */}
+            <span className="flex shrink-0 items-center gap-3">
+              <StatusIcon
+                aria-hidden
+                strokeWidth={2.25}
+                className={cn(
+                  "h-3.5 w-3.5",
+                  toneTextClass(sTone),
+                  active && "animate-pulse",
+                )}
+              />
+              <span
+                className={cn(
+                  "font-mono text-[11px] font-semibold tabular-nums tracking-[0.08em]",
+                  active ? "text-flame" : "text-bone/60",
+                )}
+                title="elapsed since report"
+              >
+                {fmtElapsed(inc.reported_at)}
               </span>
-              <span className="flex items-center gap-3">
-                {inc.call_count !== undefined && (
-                  <IconCount icon={Phone} n={inc.call_count} />
-                )}
-                {inc.unit_count !== undefined && (
-                  <IconCount icon={Truck} n={inc.unit_count} />
-                )}
-                <span
-                  className="flex items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70"
-                  title={`wind ${inc.wind || "—"} ${inc.wind_dir || ""}`}
-                >
-                  <Navigation
-                    aria-hidden
-                    className="h-3 w-3 text-flame/70"
-                    strokeWidth={2}
-                    style={
-                      deg !== undefined
-                        ? { transform: `rotate(${deg}deg)` }
-                        : undefined
-                    }
-                  />
-                  {inc.wind || "—"}
-                </span>
+              <span aria-hidden className="h-3 w-px bg-flame/15" />
+              {inc.call_count !== undefined && (
+                <IconCount icon={Phone} n={inc.call_count} />
+              )}
+              {inc.unit_count !== undefined && (
+                <IconCount icon={Truck} n={inc.unit_count} />
+              )}
+              <span
+                className="hidden items-center gap-1 font-mono text-[10px] tabular-nums text-bone/70 sm:flex"
+                title={`wind ${inc.wind || "—"} ${inc.wind_dir || ""}`}
+              >
+                <Navigation
+                  aria-hidden
+                  className="h-3 w-3 text-flame/70"
+                  strokeWidth={2}
+                  style={
+                    deg !== undefined
+                      ? { transform: `rotate(${deg}deg)` }
+                      : undefined
+                  }
+                />
+                {inc.wind || "—"}
               </span>
             </span>
           </button>

@@ -90,48 +90,9 @@ export function StatusChip({
         className,
       )}
     >
-      <Led
-        tone={toneToLed(tone)}
-        pulse={status === "active"}
-        size="sm"
-      />
+      <Led tone={toneToLed(tone)} size="sm" />
       <Icon aria-hidden strokeWidth={2.25} className="h-3 w-3" />
       {status.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-/** Boxed glyph used as a section/icon anchor throughout the record. */
-export function GlyphTile({
-  icon: Icon,
-  size = "md",
-  className,
-}: {
-  icon: LucideIcon;
-  size?: "sm" | "md" | "lg";
-  className?: string;
-}) {
-  const box =
-    size === "lg"
-      ? "h-14 w-14"
-      : size === "sm"
-        ? "h-5 w-5"
-        : "h-8 w-8";
-  const glyph =
-    size === "lg" ? "h-7 w-7" : size === "sm" ? "h-3 w-3" : "h-4 w-4";
-  return (
-    <span
-      className={cn(
-        "flex shrink-0 items-center justify-center border border-flame/25 bg-wine/40 shadow-[inset_0_0_14px_rgb(255_46_46/0.1)]",
-        box,
-        className,
-      )}
-    >
-      <Icon
-        aria-hidden
-        strokeWidth={1.75}
-        className={cn("text-flame", glyph)}
-      />
     </span>
   );
 }
@@ -174,27 +135,3 @@ export function SectionHead({
   );
 }
 
-/** Icon-labelled readout cell for the hero meta grid. */
-export function MetaCell({
-  icon: Icon,
-  label,
-  className,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn("bg-coal/95 px-3 py-2.5", className)}>
-      <div className="flex items-center gap-1.5 font-mono text-[8px] uppercase tracking-[0.28em] text-ash">
-        <Icon aria-hidden className="h-3 w-3 text-flame/70" />
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-[11px] tracking-wider text-bone/85">
-        {children}
-      </div>
-    </div>
-  );
-}

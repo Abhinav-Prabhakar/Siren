@@ -70,7 +70,6 @@ import {
   toneTextClass,
 } from "./incident-icons";
 import {
-  GlyphTile,
   PriorityMark,
   SectionHead,
   StatusChip,
@@ -437,7 +436,7 @@ function DispatchTicket({
     <div
       className={cn(
         "flex items-stretch border",
-        pending ? "border-blaze/30 bg-blaze/[0.04]" : "border-flame/10",
+        pending ? "border-blaze/30" : "border-flame/10",
       )}
     >
       {/* stub — status glyph on a perforated edge */}
@@ -651,7 +650,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
           )}
 
           {/* hero — glyph, classification, chips, T+ mission clock */}
-          <div className="relative overflow-hidden border border-flame/20 bg-gradient-to-br from-wine/50 via-coal to-ink">
+          <div className="relative overflow-hidden bg-gradient-to-br from-wine/50 via-coal to-ink">
             {ClassIcon && (
               <ClassIcon
                 aria-hidden
@@ -660,7 +659,13 @@ export function IncidentDetailPanel({ id }: { id: string }) {
               />
             )}
             <div className="relative flex flex-wrap items-center gap-4 p-4">
-              {ClassIcon && <GlyphTile icon={ClassIcon} size="lg" />}
+              {ClassIcon && (
+                <ClassIcon
+                  aria-hidden
+                  strokeWidth={1.5}
+                  className="h-11 w-11 shrink-0 text-flame"
+                />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-ash">
                   {inc.id}
@@ -730,7 +735,7 @@ export function IncidentDetailPanel({ id }: { id: string }) {
           {/* scene picture — AO plot + WX console in one instrument */}
           <section className="space-y-2.5">
             <SectionHead icon={Crosshair} label="Scene picture" />
-            <div className="grid border border-flame/10 bg-ink/60 sm:grid-cols-2 sm:divide-x sm:divide-flame/10">
+            <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-flame/10">
               <SectorScope
                 blips={unitBlips}
                 center={{ lat: inc.lat, lng: inc.lng, label: "IC" }}
@@ -742,57 +747,43 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             </div>
           </section>
 
-          {/* responding units — apparatus silhouettes, not cards */}
-          <section className="space-y-1">
-            <SectionHead
-              icon={Truck}
-              label="Responding units"
-              count={inc.vehicles.length}
-            />
-            {inc.vehicles.length > 0 ? (
-              <div>
-                {inc.vehicles.map((v) => (
-                  <UnitRow key={v.id} v={v} />
-                ))}
-              </div>
-            ) : (
-              <EmptyLine text="No units assigned" />
-            )}
-          </section>
+          {/* response — machines left, humans right */}
+          <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+            <section className="space-y-1">
+              <SectionHead
+                icon={Truck}
+                label="Responding units"
+                count={inc.vehicles.length}
+              />
+              {inc.vehicles.length > 0 ? (
+                <div>
+                  {inc.vehicles.map((v) => (
+                    <UnitRow key={v.id} v={v} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyLine text="No units assigned" />
+              )}
+            </section>
 
-          {/* crew — vitals strips, hearts beat at real bpm */}
-          <section className="space-y-1">
-            <SectionHead
-              icon={Users}
-              label="Crew on incident"
-              count={inc.personnel.length}
-            />
-            {inc.personnel.length > 0 ? (
-              <div>
-                {inc.personnel.map((p) => (
-                  <VitalRow key={p.id} p={p} />
-                ))}
-              </div>
-            ) : (
-              <EmptyLine text="No personnel assigned" />
-            )}
-          </section>
-
-          {/* calls — the wire, voice-prints not cards */}
-          <section className="space-y-2.5">
-            <SectionHead
-              icon={Phone}
-              label="Linked calls"
-              count={inc.calls.length}
-            />
-            {inc.calls.length > 0 ? (
-              <div className="-mx-4">
-                <CallWire calls={inc.calls} extracted={asStringList} />
-              </div>
-            ) : (
-              <EmptyLine text="No calls linked to this incident" />
-            )}
-          </section>
+            {/* crew — vitals strips, hearts beat at real bpm */}
+            <section className="space-y-1">
+              <SectionHead
+                icon={Users}
+                label="Crew on incident"
+                count={inc.personnel.length}
+              />
+              {inc.personnel.length > 0 ? (
+                <div>
+                  {inc.personnel.map((p) => (
+                    <VitalRow key={p.id} p={p} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyLine text="No personnel assigned" />
+              )}
+            </section>
+          </div>
 
           {/* dispatches — perforated order tickets */}
           <section className="space-y-2.5">
@@ -817,62 +808,77 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             )}
           </section>
 
-          {/* external contacts — service glyph keys + stamped record */}
-          <section className="space-y-2.5">
-            <SectionHead
-              icon={PhoneOutgoing}
-              label="External contacts"
-              count={contacts.length}
-            />
-            <div className="flex flex-wrap gap-3">
-              {CONTACT_SERVICES.map((s) => {
-                const SIcon = SERVICE_ICONS[s.id] ?? SERVICE_ICON_FALLBACK;
-                return (
-                  <Button
-                    key={s.id}
-                    variant="outline"
-                    size="sm"
-                    led={contacting === s.id ? "pulse" : "off"}
-                    disabled={contacting !== null}
-                    onClick={() => void contact(s.id)}
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      <SIcon aria-hidden className="h-3 w-3" />
-                      {contacting === s.id
-                        ? `Contacting ${s.label}…`
-                        : `Contact ${s.label}`}
-                    </span>
-                  </Button>
-                );
-              })}
-            </div>
-            {contacts.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {contacts.map((ct, i) => {
-                  const SIcon =
-                    SERVICE_ICONS[ct.service.toLowerCase()] ??
-                    SERVICE_ICON_FALLBACK;
+          {/* comms — the wire left, outbound contacts right */}
+          <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+            <section className="space-y-2.5">
+              <SectionHead
+                icon={Phone}
+                label="Linked calls"
+                count={inc.calls.length}
+              />
+              {inc.calls.length > 0 ? (
+                <CallWire calls={inc.calls} extracted={asStringList} />
+              ) : (
+                <EmptyLine text="No calls linked to this incident" />
+              )}
+            </section>
+
+            <section className="space-y-2.5">
+              <SectionHead
+                icon={PhoneOutgoing}
+                label="External contacts"
+                count={contacts.length}
+              />
+              <div className="flex flex-wrap gap-2.5">
+                {CONTACT_SERVICES.map((s) => {
+                  const SIcon = SERVICE_ICONS[s.id] ?? SERVICE_ICON_FALLBACK;
                   return (
-                    <span
-                      key={`${ct.service}-${ct.ts}-${i}`}
-                      className="clip-tag inline-flex items-center gap-1.5 bg-smoke px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.2em] text-bone/80 [--chamfer:4px]"
+                    <Button
+                      key={s.id}
+                      variant="outline"
+                      size="sm"
+                      led={contacting === s.id ? "pulse" : "off"}
+                      disabled={contacting !== null}
+                      onClick={() => void contact(s.id)}
                     >
-                      <SIcon
-                        aria-hidden
-                        className="h-3 w-3 text-flame/80"
-                      />
-                      {ct.service}
-                      <span className="text-ash">
-                        {fmtClock(ct.ts)} {"//"} {fmtAgo(ct.ts)}
+                      <span className="inline-flex items-center gap-1.5">
+                        <SIcon aria-hidden className="h-3 w-3" />
+                        {contacting === s.id
+                          ? `Contacting ${s.label}…`
+                          : `Contact ${s.label}`}
                       </span>
-                    </span>
+                    </Button>
                   );
                 })}
               </div>
-            ) : (
-              <EmptyLine text="No external services contacted" />
-            )}
-          </section>
+              {contacts.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {contacts.map((ct, i) => {
+                    const SIcon =
+                      SERVICE_ICONS[ct.service.toLowerCase()] ??
+                      SERVICE_ICON_FALLBACK;
+                    return (
+                      <span
+                        key={`${ct.service}-${ct.ts}-${i}`}
+                        className="clip-tag inline-flex items-center gap-1.5 bg-smoke px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.2em] text-bone/80 [--chamfer:4px]"
+                      >
+                        <SIcon
+                          aria-hidden
+                          className="h-3 w-3 text-flame/80"
+                        />
+                        {ct.service}
+                        <span className="text-ash">
+                          {fmtClock(ct.ts)} {"//"} {fmtAgo(ct.ts)}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyLine text="No external services contacted" />
+              )}
+            </section>
+          </div>
 
           {/* event log — typed glyph nodes on the rail */}
           <section className="space-y-2.5">

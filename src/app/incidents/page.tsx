@@ -98,7 +98,7 @@ function IncidentsSkeleton() {
   return (
     <div className="grid gap-6 xl:grid-cols-12">
       <div className="space-y-4 xl:col-span-5">
-        <Skeleton className="h-56" />
+        <Skeleton className="h-48" />
         <Skeleton className="h-11" />
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-16" />
@@ -207,7 +207,7 @@ export default function IncidentsPage() {
                         : null
                     }
                     onSelect={setPicked}
-                    className="h-56"
+                    className="h-48"
                   />
                 </div>
                 <Tabs

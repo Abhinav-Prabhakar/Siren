@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { ResourcesView } from "@/components/resources/resources-view";
 import type { ResourceTab } from "@/components/resources/tab-rail";
+
+export const metadata: Metadata = { title: "Resources" };
 
 const TABS: readonly ResourceTab[] = ["vehicles", "equipment", "people"];
 

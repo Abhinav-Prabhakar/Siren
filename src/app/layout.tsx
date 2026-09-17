@@ -20,14 +20,34 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
+const DESCRIPTION =
+  "An AI agent that dispatches and co-ordinates fire station vehicles, crews and equipment.";
+
 export const metadata: Metadata = {
-  title: "SIREN — Autonomous Fire Dispatch",
-  description:
-    "An AI agent that dispatches and co-ordinates fire station vehicles, crews and equipment.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  ),
+  title: {
+    default: "SIREN — Autonomous Fire Dispatch",
+    template: "SIREN — %s",
+  },
+  description: DESCRIPTION,
+  openGraph: {
+    title: "SIREN — Autonomous Fire Dispatch",
+    description: DESCRIPTION,
+    siteName: "SIREN",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SIREN — Autonomous Fire Dispatch",
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: "#060607",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

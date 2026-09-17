@@ -35,7 +35,7 @@ import {
 import { ModalDemo } from "./demos";
 
 export const metadata: Metadata = {
-  title: "SIREN — Design System",
+  title: "Design System",
 };
 
 function Section({

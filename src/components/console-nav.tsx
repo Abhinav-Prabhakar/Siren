@@ -10,10 +10,8 @@ import { cn } from "@/lib/utils";
 const API_HOST = API_URL.replace(/^https?:\/\//, "");
 
 const LINKS = [
-  { href: "/", label: "Console" },
-  { href: "/vehicles", label: "Vehicles" },
-  { href: "/equipment", label: "Equipment" },
-  { href: "/people", label: "People" },
+  { href: "/", label: "Control room" },
+  { href: "/resources", label: "Resources" },
   { href: "/incidents", label: "Incidents" },
   { href: "/presentation", label: "Deck" },
   { href: "/components", label: "Design sys" },

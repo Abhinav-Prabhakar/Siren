@@ -115,7 +115,7 @@ export default function IncidentsPage() {
         <PageHeader
           title="Incidents"
           sub="Event log & response // STA-01"
-          back={{ href: "/", label: "Console" }}
+          back={{ href: "/", label: "Control room" }}
           status={
             <Badge tone={error && !data ? "dead" : active > 0 ? "hot" : "cold"}>
               {error && !data

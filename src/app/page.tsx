@@ -11,8 +11,6 @@ import {
   Divider,
   IncidentCard,
   Led,
-  LogFeed,
-  Meter,
   Modal,
   PageHeader,
   Panel,
@@ -48,18 +46,6 @@ const PRIORITY_RANK: Record<IncidentPriority, number> = {
   P3: 2,
   P4: 3,
 };
-
-const VEHICLE_STATUSES = [
-  "available",
-  "dispatched",
-  "en_route",
-  "on_scene",
-  "returning",
-  "refuel",
-  "out_of_service",
-] as const;
-
-const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
 /** Dispatch lifecycle → badge tone (statusTone() doesn't cover these). */
 const DISPATCH_TONE: Record<DispatchStatus, BadgeTone> = {
@@ -122,7 +108,6 @@ export default function ControlRoomPage() {
   const incidents = usePolling(() => api.incidents("active"), POLL_MS);
   const calls = usePolling(() => api.calls(), POLL_MS);
   const dispatches = usePolling(() => api.dispatches(), POLL_MS);
-  const events = usePolling(() => api.events(40), POLL_MS);
   const settings = usePolling(() => api.settings(), POLL_MS);
 
   const [dispatchFocus, setDispatchFocus] = useState<Dispatch | null>(null);
@@ -177,7 +162,6 @@ export default function ControlRoomPage() {
     incidents.refresh();
     calls.refresh();
     dispatches.refresh();
-    events.refresh();
     settings.refresh();
   }
 
@@ -240,7 +224,6 @@ export default function ControlRoomPage() {
         prev ? { ...prev, ...updated } : prev,
       );
       incidents.refresh();
-      events.refresh();
     } catch (e) {
       setContactError(
         e instanceof Error ? e.message : "contact request failed",
@@ -255,10 +238,7 @@ export default function ControlRoomPage() {
   const ov = overview.data;
   const vCounts = ov?.counts.vehicles ?? {};
   const pCounts = ov?.counts.personnel ?? {};
-  const eCounts = ov?.counts.equipment ?? {};
   const totalVehicles = Object.values(vCounts).reduce((a, b) => a + b, 0);
-  const totalPersonnel = Object.values(pCounts).reduce((a, b) => a + b, 0);
-  const totalEquipment = Object.values(eCounts).reduce((a, b) => a + b, 0);
   const unitsReady = vCounts["available"] ?? 0;
   const unitsCommitted =
     (vCounts["dispatched"] ?? 0) +
@@ -270,7 +250,6 @@ export default function ControlRoomPage() {
     (pCounts["en_route"] ?? 0) +
     (pCounts["on_scene"] ?? 0);
   const crewResting = pCounts["resting"] ?? 0;
-  const kitReady = eCounts["ready"] ?? 0;
 
   const activeIncidents = incidents.data ?? [];
   const topIncident = [...activeIncidents].sort(
@@ -302,26 +281,17 @@ export default function ControlRoomPage() {
         (a.started_at ? Date.parse(a.started_at) : 0),
   );
 
-  const feedLines = [...(events.data ?? [])].reverse().map((e) => ({
-    time: fmtClock(e.ts),
-    tag: e.tag,
-    text: e.message,
-    tone: e.tone,
-  }));
-
   const firstError =
     overview.error ??
     incidents.error ??
     calls.error ??
     dispatches.error ??
-    events.error ??
     settings.error;
   const hasData =
     overview.data !== null ||
     incidents.data !== null ||
     calls.data !== null ||
-    dispatches.data !== null ||
-    events.data !== null;
+    dispatches.data !== null;
   /* error + nothing on screen → critical; error + stale data → warning */
   const backendDown = firstError !== null && !hasData;
   const staleData = firstError !== null && hasData;
@@ -352,7 +322,8 @@ export default function ControlRoomPage() {
             title={`Backend unreachable at ${API_HOST}`}
           >
             Telemetry uplink lost — polling keeps retrying every 4 s and the
-            console self-heals when the API returns. Last error: {firstError}
+            control room self-heals when the API returns. Last error:{" "}
+            {firstError}
           </Alert>
         )}
         {staleData && (
@@ -387,6 +358,9 @@ export default function ControlRoomPage() {
                 disabled={settings.data === null || nightBusy}
                 onCheckedChange={(v) => void toggleNight(v)}
               />
+              <Button variant="outline" size="sm" href="/resources">
+                Resources deck
+              </Button>
               <Button
                 variant="solid"
                 size="sm"
@@ -488,7 +462,7 @@ export default function ControlRoomPage() {
         {/* main board */}
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
           {/* left — incidents + inbound calls */}
-          <div className="space-y-6 xl:col-span-5">
+          <div className="space-y-6 xl:col-span-4">
             <Panel
               title="Active incidents"
               led={activeIncidents.length > 0 ? "pulse" : "off"}
@@ -563,8 +537,8 @@ export default function ControlRoomPage() {
             </Panel>
           </div>
 
-          {/* center — human-in-the-loop approvals + fleet readiness */}
-          <div className="space-y-6 xl:col-span-4">
+          {/* center — human-in-the-loop approvals */}
+          <div className="space-y-6 xl:col-span-5">
             <Panel
               title="Pending dispatch approvals"
               led={pendingDispatches.length > 0 ? "pulse" : "off"}
@@ -692,77 +666,10 @@ export default function ControlRoomPage() {
                 </>
               )}
             </Panel>
-
-            <Panel
-              title="Fleet readiness"
-              led="on"
-              right={`${unitsReady}/${totalVehicles} ready`}
-              bodyClassName="space-y-4"
-            >
-              {ov === null ? (
-                skeletonCards(1)
-              ) : (
-                <>
-                  <Meter
-                    label="Fleet ready"
-                    value={pct(unitsReady, totalVehicles)}
-                    lowAt={50}
-                  />
-                  <Meter
-                    label="Crew ready"
-                    value={pct(crewOnDuty, totalPersonnel)}
-                    lowAt={50}
-                  />
-                  <Meter
-                    label="Kit ready"
-                    value={pct(kitReady, totalEquipment)}
-                    lowAt={60}
-                  />
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-flame/10 pt-3 font-mono text-[9px] uppercase tracking-[0.2em] text-ash">
-                    {VEHICLE_STATUSES.map((s) => (
-                      <div key={s} className="flex items-center justify-between">
-                        <span>{s.replace(/_/g, " ")}</span>
-                        <span className="text-bone/70">{vCounts[s] ?? 0}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-3 pt-1">
-                    <Button variant="outline" size="sm" href="/vehicles">
-                      Fleet deck
-                    </Button>
-                    <Button variant="ghost" size="sm" href="/equipment">
-                      Equipment
-                    </Button>
-                    <Button variant="ghost" size="sm" href="/people">
-                      People
-                    </Button>
-                  </div>
-                </>
-              )}
-            </Panel>
           </div>
 
-          {/* right — ops feed + agent link */}
+          {/* right — agent link rail */}
           <div className="space-y-6 lg:col-span-2 xl:col-span-3">
-            <Panel
-              title="Ops feed"
-              led={backendDown ? "off" : "on"}
-              right={`${feedLines.length} rows`}
-              bodyClassName="max-h-[460px] overflow-y-auto"
-            >
-              {events.data === null && events.loading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 10 }, (_, i) => (
-                    <Skeleton key={i} className="h-4 w-full" />
-                  ))}
-                </div>
-              ) : feedLines.length === 0 ? (
-                <PanelEmpty text="Feed empty — no events logged" />
-              ) : (
-                <LogFeed lines={feedLines} />
-              )}
-            </Panel>
-
             <LlmChat />
           </div>
         </section>

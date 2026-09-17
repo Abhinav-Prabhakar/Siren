@@ -215,3 +215,20 @@ Do NOT touch `server/app.py`, `server/db.py`, or other routers — the auto-load
 ## Robustness review (final agent, after wave 1)
 
 Read-only review across `server/` + `src/`: contract drift vs PLAN.md, error paths, SQL injection (all queries parameterized), leaked secrets, unhandled promise rejections, race conditions in simulator, dead UI controls (buttons that do nothing = bug). Fixes small things directly; reports anything structural.
+
+---
+
+# Phase 3 — Resources page consolidation
+
+- `/vehicles`, `/equipment`, `/people` merge into ONE route: **`/resources`** with a **right-hand vertical sidebar** switching between the three decks (deep-linkable via `?tab=vehicles|equipment|people`). Old routes become `redirect()`s preserving the tab.
+- `/resources` uses the **`/station-bg.png`** hero asset as page background (same ink gradient + scanlines + vignette treatment as the old home splash).
+- **Shifted off the console onto /resources** (must not appear on `/` anymore):
+  - `FleetReadiness` (`src/components/console/fleet-readiness.tsx`) → LEFT column. Its action buttons become tab-switchers (not hrefs) via an `actions` slot.
+  - `OpsFeed` (`src/components/console/ops-feed.tsx`) → BOTTOM, full width.
+  - Both are self-polling shared components — import them, don't reimplement.
+- Left column may add a "Resource alerts" panel (real data: flagged equipment = maintenance|missing|battery≤25, vitals-critical personnel = hr>160|scba<25) — clicking an alert switches to the relevant tab.
+- Decks keep ALL their current content (headers, filters, modals) — extract each page's body into a deck component (`src/components/vehicles/fleet-deck.tsx`, `src/components/equipment/equipment-deck.tsx`, `src/components/people/personnel-deck.tsx`); resources page renders active deck. **No information loss.**
+- Rename "Console" → **"Control room"** everywhere user-facing (nav label, PageHeader backs, titles). `ConsoleNav` component name stays (internal).
+- File ownership phase 3:
+  - Resources agent: `src/app/resources/**`, `src/app/vehicles/page.tsx`, `src/app/equipment/page.tsx`, `src/app/people/page.tsx` (→ redirects), `src/components/resources/**`, `src/components/{vehicles,equipment,people}/*deck*.tsx`
+  - Console agent: `src/app/page.tsx`, `src/components/console-nav.tsx`, "Control room" label fixes in `src/app/incidents/page.tsx`

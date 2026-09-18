@@ -71,7 +71,6 @@ import {
   toneToLed,
 } from "./incident-icons";
 import { SectionHead } from "./marks";
-import { SectorScope, type ScopeBlip } from "./sector-scope";
 
 const POLL_MS = 4000;
 const EVENT_LIMIT = 100;
@@ -563,19 +562,6 @@ export function IncidentDetailPanel({ id }: { id: string }) {
 
   const contacts = inc?.external_contacts ?? [];
   const timeline = inc ? buildTimeline(inc, events) : [];
-  const unitBlips: ScopeBlip[] = inc
-    ? inc.vehicles.map((v) => ({
-        id: v.id,
-        lat: v.lat,
-        lng: v.lng,
-        tone: statusTone(v.status),
-        label: v.callsign,
-        pulse:
-          v.status === "en_route" ||
-          v.status === "dispatched" ||
-          v.status === "on_scene",
-      }))
-    : [];
 
   return (
     <Panel
@@ -684,17 +670,10 @@ export function IncidentDetailPanel({ id }: { id: string }) {
             )}
           </div>
 
-          {/* scene picture — AO plot + WX console in one instrument */}
+          {/* scene picture — WX console; the AO plot already rides the board */}
           <section className="space-y-2.5 border-t border-flame/10 pt-4">
             <SectionHead icon={Crosshair} label="Scene" />
-            <div className="grid border border-flame/10 sm:grid-cols-2 sm:divide-x sm:divide-flame/10">
-              <SectorScope
-                blips={unitBlips}
-                center={{ lat: inc.lat, lng: inc.lng, label: "IC" }}
-                anchor
-                vectors
-                className="h-44"
-              />
+            <div className="border border-flame/10">
               <WxConsole inc={inc} />
             </div>
           </section>

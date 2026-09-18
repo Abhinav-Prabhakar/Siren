@@ -154,6 +154,9 @@ export function FleetMap({
       const ml = await import("maplibre-gl");
       if (disposed) return;
       mlRef.current = ml;
+      // Turbopack rewrites the worker's relative import of the shared
+      // chunk with a hash it can't resolve — serve a fixed copy instead.
+      ml.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
       map = new ml.Map({
         container,
         style: OFFLINE_STYLE,

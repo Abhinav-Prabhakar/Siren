@@ -83,9 +83,11 @@ Conventions: `snake_case` end-to-end (DB → JSON → TypeScript interfaces in
 `DSP-004`); all timestamps ISO-8601 UTC with `Z`.
 
 Seed (`server/seed.py`, runs only when DB is empty): 1 station, 8 vehicles
-(one per type), 14 personnel, ~30 equipment items, 2 active incidents + 1
-resolved, 3 calls (two sharing one incident to demo grouping), 2 pending
-agent-proposed dispatches, event + telemetry history.
+(one per type, all available in quarters), 14 personnel (on duty), ~30
+equipment items (ready, one flagged maintenance), a handful of station-ops
+event rows, telemetry history for sparklines. **No incidents, calls or
+dispatches are seeded** — every incident on the board comes from a real
+intake (Vapi call, SIREN-1 chat, or manual dispatch).
 
 ---
 
@@ -220,12 +222,6 @@ demo:
 - **Weather drifts** on unresolved incidents (temp, humidity, wind speed/dir).
 - **Night watch check each tick** — any `pending` dispatch auto-approves while
   armed (covers proposals arriving between ticks).
-- **Auto-intake spawner**: if the board has been quiet for ~75 s (never more
-  than 3 open incidents), SIREN-1 "takes a call" — picks one of 10 authored
-  scenarios (structure fire, MVA, hazmat, gas leak, elevator rescue…), creates
-  the incident via the same `create_incident` tool path, and proposes a
-  dispatch with scenario-appropriate units. This keeps the full
-  call→approve→roll→resolve loop demonstrable without live Vapi traffic.
 - Failure-tolerant: a tick exception is logged and the loop continues;
   `SIREN_DISABLE_SIM=1` freezes the world for tests.
 

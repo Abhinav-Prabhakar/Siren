@@ -25,11 +25,6 @@ try:
 except ImportError:  # imported as server.simulator in some contexts
     from server.routers.dispatches import apply_approval
 
-try:
-    from chat_tools import create_incident, propose_dispatch
-except ImportError:
-    from server.chat_tools import create_incident, propose_dispatch
-
 TICK_S = 4.0
 KEEP_PER_METRIC = 500
 MOVING = ("dispatched", "en_route", "returning")
@@ -38,42 +33,6 @@ ARRIVE_DEG = 0.0009            # ~100 m — close enough to count as arrived
 CONTAINED_AFTER_S = 90.0       # first unit on scene -> contained
 RESOLVE_AFTER_S = 60.0         # contained -> resolved
 WIND_DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-
-# Auto-intake — without Vapi traffic nothing else creates incidents, and the
-# board would go permanently quiet once the seed set resolves. When the board
-# has been empty of open incidents for a while, SIREN-1 takes a call: spawn a
-# scenario and let the agent propose the dispatch (pending -> operator
-# approves, or auto-approved under night watch). The full loop stays alive.
-SPAWN_QUIET_S = 75.0           # quiet board required before a new call comes in
-SPAWN_CHANCE = 0.05            # per tick once eligible (~every 80 s)
-SPAWN_CONCURRENT_CHANCE = 0.004  # rare second/third concurrent incident
-MAX_OPEN_INCIDENTS = 3
-
-# (classification, priority, address, preferred vehicle types, preferred kit)
-SPAWN_SCENARIOS = [
-    ("Structure fire — residential", "P1", "1420 Ashford Row",
-     ("pumper", "ladder", "tender"), ("scba", "thermal", "hose")),
-    ("Structure fire — commercial", "P1", "77 Foundry Blvd",
-     ("pumper", "ladder", "command"), ("scba", "thermal", "fan")),
-    ("Motor vehicle accident — multi-car", "P2", "Route 9 & Kellerman Ave",
-     ("rescue", "ambulance", "pumper"), ("hydraulic", "medical")),
-    ("Vehicle fire — highway shoulder", "P3", "Hwy 12, mile 34",
-     ("pumper", "tender"), ("hose", "foam")),
-    ("Hazmat spill — truck rollover", "P1", "Industrial Pkwy & Dock 4",
-     ("hazmat", "pumper", "command"), ("hazmat", "ppe")),
-    ("Electrical fire — transformer vault", "P2", "88 Juniper St",
-     ("pumper", "command"), ("thermal", "ppe")),
-    ("Gas leak — residential block", "P2", "312 Maple Ct",
-     ("pumper", "hazmat"), ("hazmat", "ppe")),
-    ("Wildland/brush fire", "P2", "North Ridge Trail",
-     ("tender", "pumper", "special"), ("hose", "fan")),
-    ("Elevator rescue — trapped occupants", "P3", "Union Tower, 5 Grand Plaza",
-     ("rescue", "ladder"), ("rope", "breaching")),
-    ("Flooding — basement rescue", "P3", "19 Canal St",
-     ("rescue", "tender"), ("pump", "rope", "lighting")),
-]
-
-_quiet_since = None  # datetime the board last became empty of open incidents
 
 # vehicle status -> personnel status (personnel has no 'returning' phase)
 PERSONNEL_PHASE = {
@@ -368,96 +327,6 @@ def _tick_personnel(conn, now: str, tele: list, touched: set) -> None:
             touched.add(("personnel", p["id"], metric))
 
 
-def _pick_spawn_resources(conn, veh_types, kit_cats):
-    """Choose available units/crew/kit for a spawned incident.
-
-    Vehicles prefer the scenario's type list then any available unit; crew
-    prefer firefighters already assigned to the chosen vehicles; kit prefers
-    the scenario's categories. Returns id lists (may be empty).
-    """
-    available = conn.execute(
-        "SELECT id, type FROM vehicles WHERE status = 'available' ORDER BY id"
-    ).fetchall()
-    preferred = [v for v in available if v["type"] in veh_types]
-    rest = [v for v in available if v["type"] not in veh_types]
-    vehicles = [v["id"] for v in (preferred + rest)[:2]]
-    veh_set = set(vehicles)
-
-    on_duty = conn.execute(
-        """SELECT id, vehicle_id FROM personnel
-           WHERE status = 'on_duty' ORDER BY id"""
-    ).fetchall()
-    riding = [p for p in on_duty if p["vehicle_id"] in veh_set]
-    loose = [p for p in on_duty if p["vehicle_id"] not in veh_set]
-    personnel = [p["id"] for p in (riding + loose)[:3]]
-
-    cats = ",".join("?" * len(kit_cats))
-    ready = conn.execute(
-        f"""SELECT id, category FROM equipment
-            WHERE status = 'ready' AND category IN ({cats}) ORDER BY id""",
-        list(kit_cats),
-    ).fetchall()
-    equipment = [e["id"] for e in ready[:2]]
-    return vehicles, personnel, equipment
-
-
-def _tick_spawner(conn, now: str, now_dt: datetime) -> None:
-    """Auto-intake: keep the board alive when no calls are coming in."""
-    global _quiet_since
-    open_count = conn.execute(
-        "SELECT COUNT(*) AS c FROM incidents WHERE status != 'resolved'"
-    ).fetchone()["c"]
-    if open_count >= MAX_OPEN_INCIDENTS:
-        return
-
-    if open_count == 0:
-        if _quiet_since is None:
-            _quiet_since = now_dt
-            return
-        quiet_s = (now_dt - _quiet_since).total_seconds()
-        if quiet_s < SPAWN_QUIET_S or random.random() >= SPAWN_CHANCE:
-            return
-    else:
-        _quiet_since = None
-        if random.random() >= SPAWN_CONCURRENT_CHANCE:
-            return
-
-    cls, prio, addr, veh_types, kit_cats = random.choice(SPAWN_SCENARIOS)
-    sta = conn.execute(
-        "SELECT lat, lng FROM stations ORDER BY id LIMIT 1"
-    ).fetchone()
-    lat = lng = None
-    if sta and sta["lat"] is not None and sta["lng"] is not None:
-        lat = sta["lat"] + random.uniform(-0.045, 0.045)
-        lng = sta["lng"] + random.uniform(-0.045, 0.045)
-
-    result, _ = create_incident(conn, {
-        "classification": cls, "priority": prio, "address": addr,
-        "lat": lat, "lng": lng,
-        "wind": f"{random.randint(5, 35)} km/h",
-        "wind_dir": random.choice(WIND_DIRS),
-        "temp_c": round(random.uniform(-5.0, 32.0), 1),
-        "humidity_pct": round(random.uniform(15.0, 95.0), 1),
-        "precip": random.choice(["none", "none", "none", "light rain", "rain"]),
-        "notes": "Auto-intake — simulated inbound call.",
-    })
-    if "error" in result:
-        _quiet_since = now_dt
-        return
-
-    vehicles, personnel, equipment = _pick_spawn_resources(
-        conn, veh_types, kit_cats)
-    if vehicles or personnel:
-        propose_dispatch(conn, {
-            "incident_id": result["incident_id"],
-            "vehicle_ids": vehicles,
-            "personnel_ids": personnel,
-            "equipment_ids": equipment,
-            "notes": f"SIREN-1 intake proposal for {cls.lower()}.",
-        })
-    _quiet_since = now_dt
-
-
 def _tick(conn) -> None:
     now = now_iso()
     now_dt = datetime.now(timezone.utc)
@@ -467,7 +336,6 @@ def _tick(conn) -> None:
     _night_mode_auto_approve(conn)
     _tick_vehicles(conn, now, now_dt, tele, touched)
     _tick_incidents(conn, now, now_dt)
-    _tick_spawner(conn, now, now_dt)
     _tick_personnel(conn, now, tele, touched)
 
     # ---- equipment battery ----------------------------------------------

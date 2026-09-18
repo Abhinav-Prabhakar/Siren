@@ -120,7 +120,7 @@ chat_messages(id INTEGER PK AUTOINCREMENT, role TEXT, content TEXT, ts TEXT);
 
 **Telemetry simulator**: backend runs an asyncio background task (~4 s tick) that drifts `fuel_pct`, `water_pct`, `speed_kmh`, `battery_v`, `heart_rate`, `scba_pct`, equipment `battery_pct`, jitter `lat/lng` for en-route units, and appends `telemetry` rows (cap history, keep last ~500/entity). This makes the monitoring UI live.
 
-**Seed data** (`server/seed.py`, run at startup if DB empty): one station `STA-01 "Siren Central"`; ~8 vehicles across types; ~14 personnel across roles; ~30 equipment items across categories; 2 active incidents (one P1 structure fire, one P2 MVA) + 1 resolved; 3 calls (1 live, 2 ended, one sharing the P1 incident to show grouping); 2 pending dispatches proposed by `agent`; ~30 event rows; telemetry history for charts.
+**Seed data** (`server/seed.py`, run at startup if DB empty): one station `STA-01 "Siren Central"`; ~8 vehicles across types (all available); ~14 personnel across roles (on duty); ~30 equipment items across categories (ready); a few station-ops event rows; telemetry history for charts. No incidents/calls/dispatches are seeded — incidents only ever come from real intake.
 
 ## File ownership — do NOT edit files outside your lane
 

@@ -3,6 +3,7 @@
 Runs execute_tool() directly (no LLM calls). Uses the session `client`
 fixture so SIREN_DB points at the seeded throwaway DB; handlers get a real
 sqlite conn via db.get_conn(), same pattern as test_night_mode_auto_approve.
+The seed ships no incidents — tests create their own via make_incident.
 """
 import json
 
@@ -30,27 +31,34 @@ def _run(conn, name, args):
 def test_tool_get_fleet_status(conn):
     result, summary = _run(conn, "get_fleet_status", {})
     assert result["count"] == 8
-    assert result["by_status"]["on_scene"] == 4
+    assert sum(result["by_status"].values()) == 8
     v = result["vehicles"][0]
     assert {"id", "callsign", "type", "status", "fuel_pct"} <= set(v)
     assert "8 unit(s)" in summary
 
 
 def test_tool_get_fleet_status_filtered(conn):
-    result, _ = _run(conn, "get_fleet_status", {"status": "on_scene"})
-    assert result["count"] == 4
-    assert all(v["status"] == "on_scene" for v in result["vehicles"])
+    result, _ = _run(conn, "get_fleet_status", {"status": "available"})
+    assert result["count"] == len(result["vehicles"]) > 0
+    assert all(v["status"] == "available" for v in result["vehicles"])
 
 
-def test_tool_get_incidents_parses_contacts(conn):
+def test_tool_get_incidents_parses_contacts(conn, make_incident):
+    iid = make_incident()
+    conn.execute(
+        "UPDATE incidents SET external_contacts = ? WHERE id = ?",
+        (json.dumps([{"service": "utility", "ts": "2025-01-01T00:00:00Z"}]),
+         iid),
+    )
+    conn.commit()
+
     result, _ = _run(conn, "get_incidents", {"status": "active"})
-    assert result["count"] == 2
-    inc1 = next(i for i in result["incidents"] if i["id"] == "INC-001")
-    assert isinstance(inc1["external_contacts"], list)
-    assert inc1["external_contacts"][0]["service"] == "utility"
-    # earlier mutation tests dispatch extra units to INC-001
-    assert inc1["unit_count"] >= 3
-    assert inc1["call_count"] == 2
+    assert result["count"] >= 1
+    inc = next(i for i in result["incidents"] if i["id"] == iid)
+    assert isinstance(inc["external_contacts"], list)
+    assert inc["external_contacts"][0]["service"] == "utility"
+    assert inc["unit_count"] == 0
+    assert inc["call_count"] == 0
 
 
 def test_tool_get_telemetry(conn):
@@ -147,21 +155,22 @@ def test_tool_update_incident(conn):
     assert row["resolved_at"] is None
 
 
-def test_tool_update_incident_resolved_releases_units(conn):
-    # attach a vehicle to INC-002, then resolve it through the tool
+def test_tool_update_incident_resolved_releases_units(conn, make_incident):
+    iid = make_incident()
+    # attach a vehicle, then resolve through the tool
     conn.execute(
-        "UPDATE vehicles SET status='on_scene', incident_id='INC-002' "
-        "WHERE id='VEH-08'"
+        "UPDATE vehicles SET status='on_scene', incident_id=? WHERE id='VEH-08'",
+        (iid,),
     )
     conn.commit()
 
     result, summary = _run(conn, "update_incident", {
-        "incident_id": "INC-002", "status": "resolved",
+        "incident_id": iid, "status": "resolved",
     })
     assert result["units_released"] >= 1
 
     row = conn.execute(
-        "SELECT status, resolved_at FROM incidents WHERE id='INC-002'"
+        "SELECT status, resolved_at FROM incidents WHERE id=?", (iid,)
     ).fetchone()
     assert row["status"] == "resolved"
     assert row["resolved_at"]
@@ -170,28 +179,30 @@ def test_tool_update_incident_resolved_releases_units(conn):
     assert v["status"] == "returning"
 
 
-def test_tool_update_incident_errors(conn):
+def test_tool_update_incident_errors(conn, make_incident):
+    iid = make_incident()
     result, _ = _run(conn, "update_incident", {"incident_id": "INC-XX",
                                              "status": "active"})
     assert "not found" in result["error"]
-    result, _ = _run(conn, "update_incident", {"incident_id": "INC-001"})
+    result, _ = _run(conn, "update_incident", {"incident_id": iid})
     assert "nothing to update" in result["error"]
-    result, _ = _run(conn, "update_incident", {"incident_id": "INC-001",
+    result, _ = _run(conn, "update_incident", {"incident_id": iid,
                                              "status": "exploded"})
     assert "error" in result
 
 
-def test_tool_contact_external_service(conn):
+def test_tool_contact_external_service(conn, make_incident):
+    iid = make_incident()
     result, summary = _run(conn, "contact_external_service", {
-        "incident_id": "INC-001", "service": "gas",
+        "incident_id": iid, "service": "gas",
     })
     contacts = result["external_contacts"]
     assert contacts[-1]["service"] == "gas"
     assert contacts[-1]["ts"]
-    assert "gas notified on INC-001" in summary
+    assert f"gas notified on {iid}" in summary
 
     raw = conn.execute(
-        "SELECT external_contacts FROM incidents WHERE id='INC-001'"
+        "SELECT external_contacts FROM incidents WHERE id=?", (iid,)
     ).fetchone()["external_contacts"]
     assert json.loads(raw)[-1]["service"] == "gas"
 
@@ -206,9 +217,10 @@ def test_tool_contact_external_service(conn):
     assert "not found" in result["error"]
 
 
-def test_tool_propose_dispatch_pending(conn):
+def test_tool_propose_dispatch_pending(conn, make_incident):
+    iid = make_incident()
     result, summary = _run(conn, "propose_dispatch", {
-        "incident_id": "INC-001",
+        "incident_id": iid,
         "personnel_ids": ["PER-02"],
         "equipment_ids": ["EQ-08"],
         "notes": "Chief + spare PPE to the P1.",
@@ -216,7 +228,7 @@ def test_tool_propose_dispatch_pending(conn):
     d = result["dispatch"]
     assert d["status"] == "pending"
     assert d["proposed_by"] == "agent"
-    assert d["incident_id"] == "INC-001"
+    assert d["incident_id"] == iid
     assert d["personnel_ids"] == ["PER-02"]
     assert d["equipment_ids"] == ["EQ-08"]
     assert result["awaiting_operator"] is True
@@ -236,30 +248,38 @@ def test_tool_propose_dispatch_pending(conn):
     assert ev is not None and "awaiting operator approval" in ev["message"]
 
 
-def test_tool_propose_dispatch_validation(conn):
+def test_tool_propose_dispatch_validation(conn, make_incident):
+    iid = make_incident()
     result, _ = _run(conn, "propose_dispatch", {
         "incident_id": "INC-XX", "vehicle_ids": ["VEH-03"],
     })
     assert "not found" in result["error"]
 
-    result, _ = _run(conn, "propose_dispatch", {"incident_id": "INC-001"})
+    result, _ = _run(conn, "propose_dispatch", {"incident_id": iid})
     assert "at least one" in result["error"]
 
     result, _ = _run(conn, "propose_dispatch", {
-        "incident_id": "INC-001", "vehicle_ids": ["VEH-XX"],
+        "incident_id": iid, "vehicle_ids": ["VEH-XX"],
     })
     assert "VEH-XX" in result["error"]
 
     # resolved incident refuses
+    _run(conn, "update_incident", {"incident_id": iid, "status": "resolved"})
     result, _ = _run(conn, "propose_dispatch", {
-        "incident_id": "INC-003", "vehicle_ids": ["VEH-03"],
+        "incident_id": iid, "vehicle_ids": ["VEH-03"],
     })
     assert "resolved" in result["error"]
 
 
-def test_tool_propose_dispatch_warns_on_busy(conn):
+def test_tool_propose_dispatch_warns_on_busy(conn, make_incident):
+    iid = make_incident()
+    # put resources into non-expected states to exercise the soft warnings
+    conn.execute("UPDATE vehicles SET status='on_scene' WHERE id='VEH-01'")
+    conn.execute("UPDATE equipment SET status='in_use' WHERE id='EQ-01'")
+    conn.commit()  # PER-14 is 'resting' in the seed
+
     result, _ = _run(conn, "propose_dispatch", {
-        "incident_id": "INC-001",
+        "incident_id": iid,
         "vehicle_ids": ["VEH-01"],      # on_scene, not available
         "personnel_ids": ["PER-14"],    # resting, not on_duty
         "equipment_ids": ["EQ-01"],     # in_use, not ready
@@ -270,7 +290,8 @@ def test_tool_propose_dispatch_warns_on_busy(conn):
     assert any("EQ-01" in w for w in warnings)
 
 
-def test_tool_night_mode_auto_approve(conn):
+def test_tool_night_mode_auto_approve(conn, make_incident):
+    iid = make_incident()
     # arm night watch directly in settings (the tool can't touch it by design)
     conn.execute(
         "INSERT OR REPLACE INTO settings(key, value) VALUES('night_mode','true')"
@@ -278,7 +299,7 @@ def test_tool_night_mode_auto_approve(conn):
     conn.commit()
     try:
         result, summary = _run(conn, "propose_dispatch", {
-            "incident_id": "INC-001",
+            "incident_id": iid,
             "vehicle_ids": ["VEH-03"],
             "personnel_ids": ["PER-09"],
         })
@@ -290,7 +311,7 @@ def test_tool_night_mode_auto_approve(conn):
             "SELECT status, incident_id FROM vehicles WHERE id='VEH-03'"
         ).fetchone()
         assert v["status"] == "dispatched"
-        assert v["incident_id"] == "INC-001"
+        assert v["incident_id"] == iid
         p = conn.execute(
             "SELECT status FROM personnel WHERE id='PER-09'"
         ).fetchone()

@@ -343,13 +343,17 @@ def _tool_create_incident(conn, call_row, args: dict) -> dict:
             f"Call grouped into existing incident {existing['id']} ({existing['classification']})",
             "bone",
         )
-        return {
+        result = {
             "incident_id": existing["id"],
             "status": existing["status"],
             "priority": existing["priority"],
             "matched_existing": True,
             "message": "Caller matched to an already-open incident at this address.",
         }
+        result["dispatch"] = _tool_dispatch_units(
+            conn, call_row, {"incident_id": existing["id"]}
+        )
+        return result
 
     incident_id = _new_id("INC")
     notes_bits = [args.get("notes") or ""]
@@ -388,7 +392,7 @@ def _tool_create_incident(conn, call_row, args: dict) -> dict:
             + f") via {caller}",
             "flame",
         )
-    return {
+    result = {
         "incident_id": incident_id,
         "status": "active",
         "priority": priority,
@@ -396,6 +400,10 @@ def _tool_create_incident(conn, call_row, args: dict) -> dict:
         "matched_existing": False,
         "message": "Incident created and logged. Repeat the incident id back if helpful.",
     }
+    result["dispatch"] = _tool_dispatch_units(
+        conn, call_row, {"incident_id": incident_id}
+    )
+    return result
 
 
 def _tool_update_incident(conn, call_row, args: dict) -> dict:
@@ -470,6 +478,28 @@ def _tool_dispatch_units(conn, call_row, args: dict) -> dict:
     if incident is None:
         return {
             "error": "No incident to dispatch against. Create or identify the incident first."
+        }
+
+    pending = conn.execute(
+        "SELECT * FROM dispatches WHERE incident_id = ? AND status = 'pending' "
+        "ORDER BY created_at LIMIT 1",
+        (incident["id"],),
+    ).fetchone()
+    if pending is not None:
+        def _joined(table: str, col: str) -> list:
+            return [r[col] for r in conn.execute(
+                f"SELECT {col} FROM {table} WHERE dispatch_id = ?", (pending["id"],)
+            )]
+        return {
+            "dispatch_id": pending["id"],
+            "incident_id": incident["id"],
+            "status": "pending",
+            "reused_pending": True,
+            "vehicle_ids": _joined("dispatch_vehicles", "vehicle_id"),
+            "personnel_ids": _joined("dispatch_personnel", "personnel_id"),
+            "equipment_ids": _joined("dispatch_equipment", "equipment_id"),
+            "message": "A dispatch proposal is already pending operator approval "
+                       "for this incident.",
         }
 
     def _existing_ids(table: str, ids: list) -> list:
@@ -554,6 +584,7 @@ def _tool_dispatch_units(conn, call_row, args: dict) -> dict:
         "dispatch_id": dispatch_id,
         "incident_id": incident["id"],
         "status": "pending",
+        "reused_pending": False,
         "vehicle_ids": vehicle_ids,
         "personnel_ids": personnel_ids,
         "equipment_ids": equipment_ids,
@@ -638,15 +669,21 @@ def _handle_tool_calls(conn, message: dict) -> JSONResponse:
     #  toolWithToolCallList:[{name, toolCall:{id, function:{name,parameters}|parameters}}]
     calls: list[tuple[str, str, dict]] = []
     for item in message.get("toolCallList") or []:
+        fn = item.get("function") or {}
+        name = item.get("name") or fn.get("name") or ""
         args = item.get("arguments")
         if args is None:
             args = item.get("parameters")
+        if args is None:
+            args = fn.get("arguments")
+        if args is None:
+            args = fn.get("parameters")
         if isinstance(args, str):
             try:
                 args = json.loads(args)
             except json.JSONDecodeError:
                 args = {}
-        calls.append((item.get("id") or "", item.get("name") or "", args or {}))
+        calls.append((item.get("id") or "", name, args or {}))
     if not calls:
         for item in message.get("toolWithToolCallList") or []:
             tc = item.get("toolCall") or {}
